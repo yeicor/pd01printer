@@ -375,13 +375,23 @@ export function createAssemblyPreview(
     gap?: number;
     /** Show strip numbers */
     showNumbers?: boolean;
+    /** Show text headers above strips */
+    showHeaders?: boolean;
     /** Background color for gaps */
     gapColor?: string;
   } = {},
 ): HTMLCanvasElement {
-  const { gap = 0, showNumbers = false, gapColor = "#e0e0e0" } = options;
+  const {
+    gap = 0,
+    showNumbers = false,
+    showHeaders = false,
+    gapColor = "#e0e0e0",
+  } = options;
   const { strips, horizontalSplits, verticalSplits, stripSize, stripHeights } =
     result;
+
+  // Header height if showing headers
+  const headerHeight = showHeaders ? 24 : 0;
 
   // Calculate preview dimensions with gaps
   const previewWidth =
@@ -390,7 +400,7 @@ export function createAssemblyPreview(
   // Sum up all strip heights for total height
   let previewHeight = 0;
   for (let row = 0; row < verticalSplits; row++) {
-    previewHeight += stripHeights[row] || stripSize.heightPx;
+    previewHeight += (stripHeights[row] || stripSize.heightPx) + headerHeight;
     if (row < verticalSplits - 1) {
       previewHeight += gap;
     }
@@ -411,14 +421,32 @@ export function createAssemblyPreview(
     const strip = strips[index];
     if (!strip) return;
 
-    // Calculate position accounting for variable heights
+    // Calculate position accounting for variable heights and headers
     let y = 0;
     for (let r = 0; r < row; r++) {
-      y += stripHeights[r] || stripSize.heightPx;
+      y += (stripHeights[r] || stripSize.heightPx) + headerHeight;
       y += gap;
     }
 
     const x = col * (stripSize.widthPx + gap);
+
+    // Draw header text if requested
+    if (showHeaders) {
+      ctx.save();
+      ctx.fillStyle = "#374151"; // slate-700
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        `Strip ${index + 1}`,
+        x + stripSize.widthPx / 2,
+        y + headerHeight / 2,
+      );
+      ctx.restore();
+    }
+
+    // Draw strip below header
+    const stripY = y + headerHeight;
 
     // Create temp canvas for strip
     const tempCanvas = document.createElement("canvas");
@@ -428,7 +456,7 @@ export function createAssemblyPreview(
     tempCtx.putImageData(strip, 0, 0);
 
     // Draw strip at exact position (no gaps in content)
-    ctx.drawImage(tempCanvas, x, y);
+    ctx.drawImage(tempCanvas, x, stripY);
 
     // Draw strip number if requested
     if (showNumbers) {
@@ -440,7 +468,7 @@ export function createAssemblyPreview(
 
       // Draw number in a circle
       const centerX = x + stripSize.widthPx / 2;
-      const centerY = y + strip.height / 2;
+      const centerY = stripY + strip.height / 2;
 
       ctx.beginPath();
       ctx.arc(centerX, centerY, 16, 0, Math.PI * 2);
@@ -462,7 +490,7 @@ export function createAssemblyPreview(
     for (let col = 1; col < horizontalSplits; col++) {
       const x = col * stripSize.widthPx;
       ctx.beginPath();
-      ctx.moveTo(x, 0);
+      ctx.moveTo(x, headerHeight);
       ctx.lineTo(x, previewHeight);
       ctx.stroke();
     }

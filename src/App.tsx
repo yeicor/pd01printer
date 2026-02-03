@@ -1099,7 +1099,7 @@ function ImagePreview() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Zoom and pan state
-  const [zoom, setZoom] = useState(0.5);
+  const [zoom, setZoom] = useState(() => screenDpi / PRINTER_DPI);
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
@@ -1222,6 +1222,7 @@ function ImagePreview() {
           const assemblyCanvas = createAssemblyPreview(result, {
             gap: 0,
             showNumbers: false,
+            showHeaders: true,
           });
           setAssemblyPreviewUrl(assemblyCanvas.toDataURL());
         } else {
@@ -1294,7 +1295,6 @@ function ImagePreview() {
 
   // Zoom presets
   const zoomPresets = [
-    { label: "Fit", value: 0.25 },
     { label: "50%", value: 0.5 },
     { label: "100%", value: actualSizeZoom, isActual: true },
     { label: "200%", value: actualSizeZoom * 2 },
@@ -1354,7 +1354,7 @@ function ImagePreview() {
                 <button
                   key={preset.label}
                   className={`px-2 py-1 text-xs rounded transition-colors ${
-                    Math.abs(zoom - preset.value) < 0.05
+                    Math.abs(zoom - preset.value) < 0.01
                       ? "bg-primary-500 text-white"
                       : "bg-slate-800 text-slate-400 hover:text-white"
                   } ${preset.isActual ? "border border-amber-500/50" : ""}`}
@@ -1453,7 +1453,7 @@ function ImagePreview() {
 
           {viewMode === "split" && (
             <div
-              className="space-y-4"
+              className="flex flex-col items-center"
               style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
             >
               {splitResult &&
@@ -1466,29 +1466,12 @@ function ImagePreview() {
                     <img
                       src={assemblyPreviewUrl}
                       alt="Assembly"
-                      className="mx-auto border border-slate-600 rounded"
+                      className="border border-slate-600 rounded"
                       draggable={false}
                       style={{ imageRendering: "pixelated" }}
                     />
                   </div>
                 )}
-
-              <div className="flex gap-2 justify-center flex-wrap">
-                {selectedImage.strips?.map((strip, index) => (
-                  <div key={index} className="bg-slate-900 rounded-lg p-2">
-                    <div className="text-xs text-slate-400 mb-1 text-center">
-                      Strip {index + 1}
-                    </div>
-                    <img
-                      src={strip.url}
-                      alt={`Strip ${index + 1}`}
-                      className="mx-auto"
-                      draggable={false}
-                      style={{ imageRendering: "pixelated" }}
-                    />
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
