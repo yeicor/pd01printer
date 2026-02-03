@@ -3,8 +3,9 @@
  *
  * Provides:
  * - Scale and crop functionality
- * - Content block detection (finding regions of interest)
- * - Block rearrangement capabilities
+ * - Rotation and flip transformations
+ * - Feature size detection for optimal scaling
+ * - Whitespace trimming
  */
 
 import { PRINTER_WIDTH } from "../printer/protocol";
@@ -31,28 +32,17 @@ export interface TransformOptions {
   flipV?: boolean;
 }
 
-export interface ContentBlock {
-  id: string;
-  /** Bounding box in image coordinates */
-  bounds: Rect;
-  /** Detected content type */
-  type: "text" | "barcode" | "qrcode" | "image" | "unknown";
-  /** Confidence score 0-1 */
-  confidence: number;
-  /** Extracted image data for this block */
-  imageData?: ImageData;
-  /** OCR text if available */
-  ocrText?: string;
-  /** Whether this block is selected for rearrangement */
-  selected?: boolean;
-}
-
-export interface BlockLayout {
-  block: ContentBlock;
-  /** New position in output */
-  position: { x: number; y: number };
-  /** Scale factor for this block */
-  scale: number;
+export interface FeatureAnalysis {
+  /** Estimated smallest feature size in pixels */
+  smallestFeatureSize: number;
+  /** Recommended minimum scale to preserve features */
+  recommendedMinScale: number;
+  /** Recommended number of strips for this image */
+  recommendedStrips: number;
+  /** Average line thickness detected */
+  averageLineThickness: number;
+  /** Whether the image appears to contain fine details (text, thin lines) */
+  hasFineDetails: boolean;
 }
 
 const DEFAULT_TRANSFORM: Required<Omit<TransformOptions, "crop">> = {
@@ -62,6 +52,23 @@ const DEFAULT_TRANSFORM: Required<Omit<TransformOptions, "crop">> = {
   flipH: false,
   flipV: false,
 };
+
+// Printer DPI for size calculations
+export const PRINTER_DPI = 200;
+
+/**
+ * Convert pixels to centimeters at printer DPI
+ */
+export function pixelsToCm(pixels: number): number {
+  return (pixels / PRINTER_DPI) * 2.54;
+}
+
+/**
+ * Convert centimeters to pixels at printer DPI
+ */
+export function cmToPixels(cm: number): number {
+  return (cm / 2.54) * PRINTER_DPI;
+}
 
 /**
  * Apply transformations to an image
@@ -162,83 +169,157 @@ export function calculateScaleForStrips(
 }
 
 /**
- * Detect content blocks in an image
- * Uses edge detection and connected component analysis
+ * Analyze image to detect smallest feature size
+ * This helps determine optimal scaling to preserve readability
  */
-export function detectContentBlocks(
-  imageData: ImageData,
-  options: {
-    /** Minimum block size in pixels */
-    minSize?: number;
-    /** Padding around detected blocks */
-    padding?: number;
-    /** Merge blocks that are close together */
-    mergeDistance?: number;
-  } = {},
-): ContentBlock[] {
-  const { minSize = 20, padding = 4, mergeDistance = 10 } = options;
+export function analyzeFeatureSize(imageData: ImageData): FeatureAnalysis {
   const { width, height, data } = imageData;
 
-  // Convert to grayscale and find non-white regions
-  const isContent = new Uint8Array(width * height);
-  const threshold = 250; // Consider pixels below this as content
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      const gray =
-        0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      const alpha = data[idx + 3];
-      // Content is non-white and non-transparent
-      isContent[y * width + x] = gray < threshold && alpha > 128 ? 1 : 0;
-    }
+  // Convert to grayscale for analysis
+  const gray = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    const idx = i * 4;
+    gray[i] = Math.round(
+      0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2],
+    );
   }
 
-  // Find connected components using flood fill
-  const visited = new Uint8Array(width * height);
-  const blocks: Rect[] = [];
+  // Measure stroke widths by analyzing dark/light transitions
+  const strokeWidths = measureStrokeWidths(gray, width, height);
 
-  for (let y = 0; y < height; y++) {
+  // Calculate statistics
+  const avgStrokeWidth =
+    strokeWidths.length > 0
+      ? strokeWidths.reduce((a, b) => a + b, 0) / strokeWidths.length
+      : 10;
+
+  const minStrokeWidth =
+    strokeWidths.length > 0 ? Math.min(...strokeWidths) : 5;
+
+  // Smallest readable feature on thermal printer is about 2 pixels
+  // Text should ideally be at least 3-4 pixels thick for clarity
+  const minReadableSize = 3;
+
+  // Calculate recommended minimum scale to keep features readable
+  const recommendedMinScale =
+    minStrokeWidth < minReadableSize ? minReadableSize / minStrokeWidth : 1.0;
+
+  // Determine if image has fine details
+  const hasFineDetails = minStrokeWidth < 4 || avgStrokeWidth < 6;
+
+  // Calculate recommended strips based on feature size and width
+  // Larger features can be scaled down more (fewer strips)
+  // Smaller features need more resolution (more strips)
+  const effectiveScale = Math.max(1.0, recommendedMinScale);
+  const recommendedStrips = Math.max(
+    1,
+    Math.ceil((width * effectiveScale) / PRINTER_WIDTH),
+  );
+
+  return {
+    smallestFeatureSize: minStrokeWidth,
+    recommendedMinScale,
+    recommendedStrips,
+    averageLineThickness: avgStrokeWidth,
+    hasFineDetails,
+  };
+}
+
+/**
+ * Measure stroke widths by finding dark/light transitions
+ */
+function measureStrokeWidths(
+  gray: Uint8Array,
+  width: number,
+  height: number,
+): number[] {
+  const strokeWidths: number[] = [];
+  const threshold = 128;
+
+  // Sample horizontal lines
+  const sampleStep = Math.max(1, Math.floor(height / 50));
+
+  for (let y = sampleStep; y < height - sampleStep; y += sampleStep) {
+    let inStroke = false;
+    let strokeStart = 0;
+
     for (let x = 0; x < width; x++) {
       const idx = y * width + x;
-      if (isContent[idx] && !visited[idx]) {
-        const bounds = floodFillBounds(isContent, visited, width, height, x, y);
-        if (bounds.width >= minSize && bounds.height >= minSize) {
-          blocks.push(bounds);
+      const isDark = gray[idx] < threshold;
+
+      if (isDark && !inStroke) {
+        inStroke = true;
+        strokeStart = x;
+      } else if (!isDark && inStroke) {
+        inStroke = false;
+        const strokeWidth = x - strokeStart;
+        if (strokeWidth >= 1 && strokeWidth <= 50) {
+          strokeWidths.push(strokeWidth);
         }
       }
     }
   }
 
-  // Merge nearby blocks
-  const mergedBlocks = mergeNearbyBlocks(blocks, mergeDistance);
+  // Sample vertical lines
+  const sampleStepH = Math.max(1, Math.floor(width / 50));
 
-  // Add padding and create ContentBlock objects
-  return mergedBlocks.map((bounds, index) => {
-    const paddedBounds: Rect = {
-      x: Math.max(0, bounds.x - padding),
-      y: Math.max(0, bounds.y - padding),
-      width: Math.min(width - bounds.x + padding, bounds.width + padding * 2),
-      height: Math.min(
-        height - bounds.y + padding,
-        bounds.height + padding * 2,
-      ),
-    };
+  for (let x = sampleStepH; x < width - sampleStepH; x += sampleStepH) {
+    let inStroke = false;
+    let strokeStart = 0;
 
-    // Extract block image data
-    const blockImageData = extractRegion(imageData, paddedBounds);
+    for (let y = 0; y < height; y++) {
+      const idx = y * width + x;
+      const isDark = gray[idx] < threshold;
 
-    // Classify block type based on characteristics
-    const type = classifyBlock(blockImageData);
+      if (isDark && !inStroke) {
+        inStroke = true;
+        strokeStart = y;
+      } else if (!isDark && inStroke) {
+        inStroke = false;
+        const strokeWidth = y - strokeStart;
+        if (strokeWidth >= 1 && strokeWidth <= 50) {
+          strokeWidths.push(strokeWidth);
+        }
+      }
+    }
+  }
 
-    return {
-      id: `block-${index}-${Date.now()}`,
-      bounds: paddedBounds,
-      type,
-      confidence: 0.8,
-      imageData: blockImageData,
-    };
-  });
+  return strokeWidths;
+}
+
+/**
+ * Calculate optimal strip count based on image analysis
+ */
+export function calculateOptimalStripCount(
+  imageData: ImageData,
+  maxStrips: number = 6,
+): { strips: number; scale: number; analysis: FeatureAnalysis } {
+  const analysis = analyzeFeatureSize(imageData);
+
+  // Start with the recommended strips from analysis
+  let optimalStrips = Math.min(analysis.recommendedStrips, maxStrips);
+
+  // Ensure at least 1 strip
+  optimalStrips = Math.max(1, optimalStrips);
+
+  // Calculate the resulting scale
+  const scale = calculateScaleForStrips(imageData.width, optimalStrips);
+
+  // Check if this scale would make features too small
+  if (analysis.smallestFeatureSize * scale < 2 && optimalStrips < maxStrips) {
+    // Need more strips to maintain readability
+    const minScale = 2 / analysis.smallestFeatureSize;
+    const neededStrips = Math.ceil(
+      (imageData.width * minScale) / PRINTER_WIDTH,
+    );
+    optimalStrips = Math.min(neededStrips, maxStrips);
+  }
+
+  return {
+    strips: optimalStrips,
+    scale: calculateScaleForStrips(imageData.width, optimalStrips),
+    analysis,
+  };
 }
 
 /**
@@ -264,93 +345,6 @@ export function extractRegion(imageData: ImageData, region: Rect): ImageData {
   }
 
   return output;
-}
-
-/**
- * Compose blocks into a new image layout
- */
-export function composeBlocks(
-  layouts: BlockLayout[],
-  outputWidth: number,
-  backgroundColor: string = "white",
-): ImageData {
-  // Calculate required height
-  let maxBottom = 0;
-  for (const layout of layouts) {
-    const bottom =
-      layout.position.y + layout.block.bounds.height * layout.scale;
-    maxBottom = Math.max(maxBottom, bottom);
-  }
-  const outputHeight = Math.ceil(maxBottom);
-
-  // Create output canvas
-  const canvas = document.createElement("canvas");
-  canvas.width = outputWidth;
-  canvas.height = outputHeight;
-  const ctx = canvas.getContext("2d")!;
-
-  // Fill background
-  ctx.fillStyle = backgroundColor;
-  ctx.fillRect(0, 0, outputWidth, outputHeight);
-
-  // Draw each block
-  for (const layout of layouts) {
-    if (!layout.block.imageData) continue;
-
-    // Create temp canvas for block
-    const blockCanvas = document.createElement("canvas");
-    blockCanvas.width = layout.block.imageData.width;
-    blockCanvas.height = layout.block.imageData.height;
-    const blockCtx = blockCanvas.getContext("2d")!;
-    blockCtx.putImageData(layout.block.imageData, 0, 0);
-
-    // Draw scaled block to output
-    const destWidth = layout.block.bounds.width * layout.scale;
-    const destHeight = layout.block.bounds.height * layout.scale;
-    ctx.drawImage(
-      blockCanvas,
-      layout.position.x,
-      layout.position.y,
-      destWidth,
-      destHeight,
-    );
-  }
-
-  return ctx.getImageData(0, 0, outputWidth, outputHeight);
-}
-
-/**
- * Auto-arrange blocks vertically to minimize space
- */
-export function autoArrangeBlocks(
-  blocks: ContentBlock[],
-  outputWidth: number = PRINTER_WIDTH,
-  gap: number = 4,
-): BlockLayout[] {
-  const layouts: BlockLayout[] = [];
-  let currentY = 0;
-
-  // Sort blocks by size (largest first for better packing)
-  const sortedBlocks = [...blocks].sort(
-    (a, b) =>
-      b.bounds.width * b.bounds.height - a.bounds.width * a.bounds.height,
-  );
-
-  for (const block of sortedBlocks) {
-    // Calculate scale to fit width
-    const scale = Math.min(1.0, outputWidth / block.bounds.width);
-    const scaledHeight = block.bounds.height * scale;
-
-    layouts.push({
-      block,
-      position: { x: 0, y: currentY },
-      scale,
-    });
-
-    currentY += scaledHeight + gap;
-  }
-
-  return layouts;
 }
 
 /**
@@ -402,6 +396,34 @@ export function trimWhitespace(
   return {
     imageData: extractRegion(imageData, trimmed),
     trimmed,
+  };
+}
+
+/**
+ * Get dimensions info for display (in cm and pixels)
+ */
+export function getDimensionsInfo(
+  widthPx: number,
+  heightPx: number,
+  strips: number = 1,
+): {
+  widthPx: number;
+  heightPx: number;
+  widthCm: number;
+  heightCm: number;
+  stripWidthCm: number;
+  totalWidthCm: number;
+} {
+  const stripWidthCm = pixelsToCm(PRINTER_WIDTH);
+  const totalWidthCm = strips * stripWidthCm;
+
+  return {
+    widthPx,
+    heightPx,
+    widthCm: pixelsToCm(widthPx),
+    heightCm: pixelsToCm(heightPx),
+    stripWidthCm,
+    totalWidthCm,
   };
 }
 
@@ -501,165 +523,4 @@ function resizeCanvas(
   ctx.drawImage(canvas, 0, 0, width, height);
 
   return output;
-}
-
-function floodFillBounds(
-  isContent: Uint8Array,
-  visited: Uint8Array,
-  width: number,
-  height: number,
-  startX: number,
-  startY: number,
-): Rect {
-  let minX = startX;
-  let maxX = startX;
-  let minY = startY;
-  let maxY = startY;
-
-  const stack: [number, number][] = [[startX, startY]];
-
-  while (stack.length > 0) {
-    const [x, y] = stack.pop()!;
-    const idx = y * width + x;
-
-    if (x < 0 || x >= width || y < 0 || y >= height) continue;
-    if (visited[idx] || !isContent[idx]) continue;
-
-    visited[idx] = 1;
-
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-
-    // Check 4-connected neighbors
-    stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
-  }
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX + 1,
-    height: maxY - minY + 1,
-  };
-}
-
-function mergeNearbyBlocks(blocks: Rect[], distance: number): Rect[] {
-  if (blocks.length === 0) return [];
-
-  const merged: Rect[] = [];
-  const used = new Set<number>();
-
-  for (let i = 0; i < blocks.length; i++) {
-    if (used.has(i)) continue;
-
-    let current = { ...blocks[i] };
-    used.add(i);
-
-    // Keep merging until no more nearby blocks
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (let j = 0; j < blocks.length; j++) {
-        if (used.has(j)) continue;
-
-        if (blocksAreNear(current, blocks[j], distance)) {
-          current = mergeRects(current, blocks[j]);
-          used.add(j);
-          changed = true;
-        }
-      }
-    }
-
-    merged.push(current);
-  }
-
-  return merged;
-}
-
-function blocksAreNear(a: Rect, b: Rect, distance: number): boolean {
-  const aRight = a.x + a.width;
-  const aBottom = a.y + a.height;
-  const bRight = b.x + b.width;
-  const bBottom = b.y + b.height;
-
-  const horizontalGap = Math.max(0, Math.max(a.x - bRight, b.x - aRight));
-  const verticalGap = Math.max(0, Math.max(a.y - bBottom, b.y - aBottom));
-
-  return horizontalGap <= distance && verticalGap <= distance;
-}
-
-function mergeRects(a: Rect, b: Rect): Rect {
-  const x = Math.min(a.x, b.x);
-  const y = Math.min(a.y, b.y);
-  const right = Math.max(a.x + a.width, b.x + b.width);
-  const bottom = Math.max(a.y + a.height, b.y + b.height);
-
-  return {
-    x,
-    y,
-    width: right - x,
-    height: bottom - y,
-  };
-}
-
-function classifyBlock(imageData: ImageData): ContentBlock["type"] {
-  const { width, height, data } = imageData;
-
-  // Count edge transitions (for barcode/QR detection)
-  let horizontalTransitions = 0;
-  let verticalTransitions = 0;
-  const threshold = 128;
-
-  // Sample horizontal lines
-  for (let y = 0; y < height; y += 4) {
-    let prevDark = false;
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * 4;
-      const gray =
-        0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      const isDark = gray < threshold;
-      if (isDark !== prevDark) horizontalTransitions++;
-      prevDark = isDark;
-    }
-  }
-
-  // Sample vertical lines
-  for (let x = 0; x < width; x += 4) {
-    let prevDark = false;
-    for (let y = 0; y < height; y++) {
-      const idx = (y * width + x) * 4;
-      const gray =
-        0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      const isDark = gray < threshold;
-      if (isDark !== prevDark) verticalTransitions++;
-      prevDark = isDark;
-    }
-  }
-
-  const aspectRatio = width / height;
-
-  // QR codes are roughly square with many transitions in both directions
-  if (aspectRatio > 0.8 && aspectRatio < 1.2) {
-    const avgTransitions = (horizontalTransitions + verticalTransitions) / 2;
-    if (avgTransitions > width * 0.3) {
-      return "qrcode";
-    }
-  }
-
-  // Barcodes are wide with many vertical transitions
-  if (aspectRatio > 2 && verticalTransitions > horizontalTransitions * 2) {
-    return "barcode";
-  }
-
-  // Text typically has moderate transitions
-  const totalArea = width * height;
-  const transitionDensity =
-    (horizontalTransitions + verticalTransitions) / totalArea;
-
-  if (transitionDensity > 0.01 && transitionDensity < 0.1) {
-    return "text";
-  }
-
-  return "unknown";
 }

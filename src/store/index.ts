@@ -14,7 +14,11 @@ import { ConnectionState, BluetoothDevice } from "../lib/printer/bluetooth";
 import { PrintProgress } from "../lib/printer/protocol";
 import { DitherAlgorithm, ProcessingOptions } from "../lib/image/processor";
 import { SplitOptions } from "../lib/image/splitter";
-import { TransformOptions, ContentBlock, Rect } from "../lib/image/transform";
+import {
+  TransformOptions,
+  Rect,
+  FeatureAnalysis,
+} from "../lib/image/transform";
 
 // Types
 
@@ -36,10 +40,12 @@ export interface ImageItem {
   crop?: Rect;
   /** Scale factor for the image */
   scale?: number;
-  /** Detected content blocks */
-  blocks?: ContentBlock[];
-  /** Whether blocks have been analyzed */
-  blocksAnalyzed?: boolean;
+  /** Feature analysis results */
+  featureAnalysis?: FeatureAnalysis;
+  /** Whether the image came from a PDF */
+  isPdf?: boolean;
+  /** PDF page number (if from PDF) */
+  pdfPage?: number;
 }
 
 export interface PrintJob {
@@ -70,14 +76,6 @@ interface PrinterState {
   // Transform Settings (global defaults)
   defaultTransform: TransformOptions;
 
-  // OCR State
-  ocrLoaded: boolean;
-  ocrLoading: boolean;
-  ocrProgress: { status: string; progress: number } | null;
-
-  // Advanced mode (shows block detection, OCR, etc.)
-  advancedMode: boolean;
-
   // Print State
   printQueue: PrintJob[];
   currentPrintJob: PrintJob | null;
@@ -89,6 +87,12 @@ interface PrinterState {
   showPreview: boolean;
   previewMode: "original" | "processed" | "split";
   toastMessage: { type: "success" | "error" | "info"; message: string } | null;
+
+  // Text label creator panel state
+  textLabelOpen: boolean;
+
+  // Screen DPI for accurate preview sizing
+  screenDpi: number;
 
   // Actions - Connection
   setConnectionState: (state: ConnectionState) => void;
@@ -121,23 +125,7 @@ interface PrinterState {
   ) => void;
   setImageCrop: (imageId: string, crop: Rect | undefined) => void;
   setImageScale: (imageId: string, scale: number) => void;
-  setImageBlocks: (imageId: string, blocks: ContentBlock[]) => void;
-  updateBlock: (
-    imageId: string,
-    blockId: string,
-    updates: Partial<ContentBlock>,
-  ) => void;
-  clearImageBlocks: (imageId: string) => void;
-
-  // Actions - OCR
-  setOCRLoaded: (loaded: boolean) => void;
-  setOCRLoading: (loading: boolean) => void;
-  setOCRProgress: (
-    progress: { status: string; progress: number } | null,
-  ) => void;
-
-  // Actions - Advanced Mode
-  setAdvancedMode: (enabled: boolean) => void;
+  setImageFeatureAnalysis: (imageId: string, analysis: FeatureAnalysis) => void;
 
   // Actions - Print
   addToPrintQueue: (job: Omit<PrintJob, "id" | "status" | "progress">) => void;
@@ -159,6 +147,8 @@ interface PrinterState {
   setPreviewMode: (mode: "original" | "processed" | "split") => void;
   showToast: (type: "success" | "error" | "info", message: string) => void;
   clearToast: () => void;
+  setTextLabelOpen: (open: boolean) => void;
+  setScreenDpi: (dpi: number) => void;
 }
 
 // Default transform options (maximize paper usage)
@@ -219,19 +209,13 @@ export const useStore = create<PrinterState>()(
       // Initial State - Transform
       defaultTransform: defaultTransformOptions,
 
-      // Initial State - OCR
-      ocrLoaded: false,
-      ocrLoading: false,
-      ocrProgress: null,
-
-      // Initial State - Advanced Mode
-      advancedMode: false,
-
       // Initial State - UI
       showSettings: false,
       showPreview: true,
       previewMode: "processed",
       toastMessage: null,
+      textLabelOpen: false,
+      screenDpi: 96, // Default, will be calculated
 
       // Actions - Connection
       setConnectionState: (state) => set({ connectionState: state }),
@@ -311,43 +295,12 @@ export const useStore = create<PrinterState>()(
           ),
         })),
 
-      setImageBlocks: (imageId, blocks) =>
+      setImageFeatureAnalysis: (imageId, analysis) =>
         set((state) => ({
           images: state.images.map((img) =>
-            img.id === imageId ? { ...img, blocks, blocksAnalyzed: true } : img,
+            img.id === imageId ? { ...img, featureAnalysis: analysis } : img,
           ),
         })),
-
-      updateBlock: (imageId, blockId, updates) =>
-        set((state) => ({
-          images: state.images.map((img) =>
-            img.id === imageId
-              ? {
-                  ...img,
-                  blocks: img.blocks?.map((b) =>
-                    b.id === blockId ? { ...b, ...updates } : b,
-                  ),
-                }
-              : img,
-          ),
-        })),
-
-      clearImageBlocks: (imageId) =>
-        set((state) => ({
-          images: state.images.map((img) =>
-            img.id === imageId
-              ? { ...img, blocks: undefined, blocksAnalyzed: false }
-              : img,
-          ),
-        })),
-
-      // Actions - OCR
-      setOCRLoaded: (loaded) => set({ ocrLoaded: loaded }),
-      setOCRLoading: (loading) => set({ ocrLoading: loading }),
-      setOCRProgress: (progress) => set({ ocrProgress: progress }),
-
-      // Actions - Advanced Mode
-      setAdvancedMode: (enabled) => set({ advancedMode: enabled }),
 
       // Actions - Print
       addToPrintQueue: (job) => {
@@ -407,6 +360,8 @@ export const useStore = create<PrinterState>()(
 
       showToast: (type, message) => set({ toastMessage: { type, message } }),
       clearToast: () => set({ toastMessage: null }),
+      setTextLabelOpen: (open) => set({ textLabelOpen: open }),
+      setScreenDpi: (dpi) => set({ screenDpi: dpi }),
     }),
     {
       name: "pd01printer-storage",
@@ -415,7 +370,6 @@ export const useStore = create<PrinterState>()(
         processingOptions: state.processingOptions,
         splitOptions: state.splitOptions,
         defaultTransform: state.defaultTransform,
-        advancedMode: state.advancedMode,
       }),
     },
   ),

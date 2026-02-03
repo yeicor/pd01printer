@@ -1,6 +1,6 @@
 # PD01 Label Printer
 
-A modern web application for printing labels on PD01/GB01 thermal printers using Web Bluetooth. Features intelligent image processing, vertical strip splitting for wide labels, and optional OCR for text extraction.
+A modern web application for printing labels on PD01/GB01 thermal printers using Web Bluetooth. Features intelligent image processing, automatic feature detection for optimal scaling, PDF support, and vertical strip splitting for wide labels.
 
 ![PD01 Label Printer](https://img.shields.io/badge/Web-Bluetooth-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)
 
@@ -13,12 +13,19 @@ A modern web application for printing labels on PD01/GB01 thermal printers using
 - **Adjustable Print Darkness** - Control energy level for different paper types
 
 ### 🖼️ Image Processing
+- **PDF Support** - Import PDF files, automatically rendered as images
 - **No Dithering by Default** - Optimized for high-quality text and graphics
-- **Multiple Dithering Options** - Floyd-Steinberg, Atkinson, Ordered, Threshold (when needed)
+- **Multiple Dithering Options** - Floyd-Steinberg, Atkinson, Ordered, Threshold
 - **Image Adjustments** - Brightness, contrast, sharpening, gamma correction
 - **Invert Colors** - For printing dark images on thermal paper
 
+### 🔍 Smart Feature Detection
+- **Auto Strip Count** - Analyzes image to detect smallest features (lines, text)
+- **Optimal Scaling** - Automatically suggests best scale to preserve readability
+- **Fine Detail Warning** - Alerts when images contain delicate features
+
 ### 📐 Scale & Crop
+- **Auto Button** - One-click intelligent scaling based on feature analysis
 - **Quick Strip Presets** - One-click scaling for 1, 2, 3, or 4 strips
 - **Custom Scale** - Fine-grained control from 10% to 300%
 - **Auto Trim** - Remove whitespace from image edges automatically
@@ -30,16 +37,17 @@ A modern web application for printing labels on PD01/GB01 thermal printers using
 - **Optional Alignment Marks** - Help with reassembly when enabled
 - **Assembly Preview** - See how strips will look when pasted together
 
-### 🔍 Content Block Detection (Advanced Mode)
-- **Automatic Detection** - Find regions of text, barcodes, and QR codes
-- **Visual Overlay** - See detected blocks on the original image
-- **Block Classification** - Identify content type for each region
-- **Rearrangement Ready** - Foundation for block-based layout editing
+### 📏 Real-World Size Preview
+- **100% Actual Size** - Preview matches exact printed dimensions on your screen
+- **Dimensions in Centimeters** - See real physical sizes, not just pixels
+- **Pan & Drag** - Navigate around large previews easily
+- **Zoom Presets** - Quick access to Fit, 50%, 100% (actual), and 200% zoom
 
-### 📝 OCR Text Extraction (Advanced Mode)
-- **Lazy Loading** - Tesseract.js only downloads when requested (~2MB)
-- **Text Extraction** - Extract text from detected content blocks
-- **Per-Block OCR** - Run OCR on specific regions of interest
+### ✏️ Text Label Creator
+- **Integrated Panel** - Quick access from the image upload area
+- **Font Size Control** - Adjustable from 12px to 48px
+- **Bold & Border Options** - Customize label appearance
+- **Instant Creation** - Generate label images ready to print
 
 ### 🌐 Progressive Web App
 - **Offline Support** - Works offline after first load
@@ -80,48 +88,56 @@ npm run preview
 ### Basic Workflow
 
 1. **Connect Printer** - Click "Connect Printer" and select your device
-2. **Upload Image** - Drag & drop or click to upload
-3. **Adjust Size** - Use the "Size & Strips" panel to set scale
-4. **Print** - Click "Print X Strips" to send to printer
+2. **Upload Image** - Drag & drop images or PDFs, or click to upload
+3. **Adjust Size** - Use "Auto" for smart scaling or select strip presets
+4. **Preview** - Check actual printed size at 100% zoom
+5. **Print** - Click "Print X Strips" to send to printer
 
-### Scale Controls
+### Size Controls
 
-The **Size & Strips** panel lets you control output size:
+The **Size & Strips** panel offers multiple scaling options:
 
-- **1 Strip** - Scale image to fit printer width (384px)
+- **Auto** - Analyzes image features and suggests optimal scale
+- **1 Strip** - Scale image to fit printer width (384px / 4.9cm)
 - **2 Strips** - Double width, prints as 2 vertical strips
 - **3/4 Strips** - For larger labels
 - **Custom Scale** - Use the slider for precise control
 
-### Simple vs Advanced Mode
+### Understanding Dimensions
 
-Toggle between modes using the button in the header:
+All dimensions are shown in both pixels and centimeters:
+- **Printer Width**: 384px = 4.9cm (at 200 DPI)
+- **Output Size**: Shows final printed dimensions
+- **Strip Size**: Individual strip measurements
 
-**Simple Mode** (Default):
-- Size & Strips controls
-- Basic image adjustments
-- Print controls
+### Preview Navigation
 
-**Advanced Mode** (Additional features):
-- Transform controls (rotate, flip, trim)
-- Content block detection
-- OCR text extraction
-- Dithering algorithms
-- Alignment marks & padding
+- **Drag to Pan** - Click and drag to move around the preview
+- **Zoom Presets** - Use Fit, 50%, 100%, or 200%
+- **100% Zoom** - Shows actual printed size on your screen
 
 ### Creating Text Labels
 
-1. Expand "Create Text Label" section
-2. Enter your text
-3. Adjust font size and styling
-4. Click "Create Label"
+1. Click the "Text" button in the upload area
+2. Enter your text in the panel
+3. Adjust font size with the slider
+4. Toggle Bold and Border options
+5. Click "Create Label"
+
+### Importing PDFs
+
+Simply drag & drop a PDF file or select it from the file picker:
+- All pages are automatically imported as separate images
+- PDFs are rendered at 2x scale for high quality
+- Each page can be printed independently
 
 ### Printing Tips
 
 - **For Text/Graphics**: Keep dithering set to "None"
 - **For Photos**: Try "Floyd-Steinberg" or "Atkinson" dithering
 - **For Thin Paper**: Reduce print darkness in settings
-- **For Wide Labels**: Use 2-3 strips and align using edge markers
+- **For Wide Labels**: Use Auto or manual strip selection
+- **Fine Details**: Use Auto to ensure features remain readable
 
 ## Browser Compatibility
 
@@ -146,9 +162,9 @@ pd01printer/
 │   │   └── image/
 │   │       ├── processor.ts   # Dithering & adjustments
 │   │       ├── splitter.ts    # Strip splitting
-│   │       ├── transform.ts   # Scale, crop, rotate
+│   │       ├── transform.ts   # Scale, crop, rotate, feature analysis
 │   │       ├── text-optimizer.ts  # Text rendering
-│   │       └── ocr.ts         # Lazy-loaded OCR
+│   │       └── pdf.ts         # PDF loading (lazy)
 │   ├── store/
 │   │   └── index.ts           # Zustand state
 │   ├── hooks/
@@ -167,7 +183,7 @@ pd01printer/
 
 | Property | Value |
 |----------|-------|
-| Paper Width | 384 dots (58mm) |
+| Paper Width | 384 dots (4.9cm at 200 DPI) |
 | Resolution | 200 DPI |
 | Bytes per Line | 48 |
 | Bit Order | LSB first |
@@ -220,7 +236,7 @@ npm run typecheck # TypeScript check
 - **Tailwind CSS 3** - Styling
 - **Zustand 5** - State management
 - **Lucide React** - Icons
-- **Tesseract.js** - OCR (optional, lazy-loaded)
+- **PDF.js** - PDF rendering (CDN, lazy-loaded)
 - **Vite PWA** - Progressive Web App
 
 ## Troubleshooting
@@ -242,8 +258,13 @@ npm run typecheck # TypeScript check
 - For text, ensure dithering is "None"
 - Increase contrast and sharpening
 
+### Text too small after printing
+- Use the "Auto" button to analyze and scale appropriately
+- Check the "Fine" detail indicator - if shown, more strips are recommended
+- Manually increase the number of strips
+
 ### Strips don't align
-- Enable alignment marks in Advanced mode
+- Enable alignment marks in Image Settings
 - Use a ruler to align edges
 - Print on a flat surface
 
@@ -263,7 +284,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - [catprinter](https://github.com/rbaron/catprinter) - Protocol research
 - [PD01 Protocol Documentation](https://github.com/rhnvrm/catprinter/blob/master/docs/pd01-protocol.md)
-- [Tesseract.js](https://tesseract.projectnaptha.com/) - OCR engine
+- [PDF.js](https://mozilla.github.io/pdf.js/) - PDF rendering engine
 
 ## Related Projects
 

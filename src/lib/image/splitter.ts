@@ -11,22 +11,30 @@
 
 import { PRINTER_WIDTH } from "../printer/protocol";
 import { processImage, ProcessingOptions } from "./processor";
+import { pixelsToCm } from "./transform";
 
 export interface SplitOptions {
   /** Target width for each strip (default: PRINTER_WIDTH = 384) */
   stripWidth?: number;
   /** Overlap between strips in pixels for easier alignment (default: 0) */
   overlap?: number;
-  /** Add alignment marks to help with pasting (default: true) */
+  /** Add alignment marks to help with pasting (default: false) */
   alignmentMarks?: boolean;
   /** Maximum height for strips, splits horizontally if exceeded (default: no limit) */
   maxHeight?: number;
   /** Processing options to apply to each strip */
   processing?: ProcessingOptions;
-  /** Padding between content and edges in pixels (default: 8) */
+  /** Padding between content and edges in pixels (default: 0) */
   padding?: number;
   /** Rotate image 90° for better fit (default: false) */
   rotate?: boolean;
+}
+
+export interface StripDimensions {
+  widthPx: number;
+  heightPx: number;
+  widthCm: number;
+  heightCm: number;
 }
 
 export interface SplitResult {
@@ -35,7 +43,7 @@ export interface SplitResult {
   /** Original image dimensions */
   originalSize: { width: number; height: number };
   /** Strip dimensions */
-  stripSize: { width: number; height: number };
+  stripSize: StripDimensions;
   /** Number of horizontal splits */
   horizontalSplits: number;
   /** Number of vertical splits (if maxHeight was exceeded) */
@@ -44,14 +52,23 @@ export interface SplitResult {
   totalStrips: number;
   /** Order info for reassembly */
   assemblyOrder: { row: number; col: number }[];
+  /** Total assembled dimensions in cm */
+  totalDimensions: {
+    widthCm: number;
+    heightCm: number;
+    widthPx: number;
+    heightPx: number;
+  };
+  /** Individual strip heights (may vary for last row) */
+  stripHeights: number[];
 }
 
 const DEFAULT_SPLIT_OPTIONS: Required<Omit<SplitOptions, "processing">> = {
   stripWidth: PRINTER_WIDTH,
   overlap: 0,
-  alignmentMarks: true,
+  alignmentMarks: false,
   maxHeight: 0, // No limit
-  padding: 8,
+  padding: 0,
   rotate: false,
 };
 
@@ -84,6 +101,7 @@ export async function splitImage(
 
   const strips: ImageData[] = [];
   const assemblyOrder: { row: number; col: number }[] = [];
+  const stripHeights: number[] = [];
 
   // Split the image
   for (let row = 0; row < verticalSplits; row++) {
@@ -94,10 +112,12 @@ export async function splitImage(
       const srcWidth = Math.min(opts.stripWidth, width - srcX);
       const srcHeight = Math.min(effectiveMaxHeight, height - srcY);
 
-      // Create strip canvas
+      // Create strip canvas - strip width is always full, height includes padding
       const stripCanvas = document.createElement("canvas");
       stripCanvas.width = opts.stripWidth;
-      stripCanvas.height = srcHeight + opts.padding * 2;
+      const stripContentHeight = srcHeight;
+      const stripTotalHeight = stripContentHeight + opts.padding * 2;
+      stripCanvas.height = stripTotalHeight;
 
       const stripCtx = stripCanvas.getContext("2d")!;
 
@@ -105,15 +125,18 @@ export async function splitImage(
       stripCtx.fillStyle = "white";
       stripCtx.fillRect(0, 0, stripCanvas.width, stripCanvas.height);
 
-      // Draw the image portion
+      // Draw the image portion centered horizontally if smaller than strip width
+      const drawX = opts.padding;
+      const drawY = opts.padding;
+
       stripCtx.drawImage(
         canvas,
         srcX,
         srcY,
         srcWidth,
         srcHeight,
-        opts.padding,
-        opts.padding,
+        drawX,
+        drawY,
         srcWidth,
         srcHeight,
       );
@@ -152,17 +175,43 @@ export async function splitImage(
 
       strips.push(imageData);
       assemblyOrder.push({ row, col });
+
+      // Track strip height for this position
+      if (col === 0) {
+        stripHeights.push(stripTotalHeight);
+      }
     }
   }
+
+  // Calculate dimensions
+  const stripWidthCm = pixelsToCm(opts.stripWidth);
+  const stripHeightPx = strips[0]?.height || 0;
+  const stripHeightCm = pixelsToCm(stripHeightPx);
+
+  // Calculate total assembled dimensions
+  const totalWidthPx = horizontalSplits * opts.stripWidth;
+  const totalHeightPx = stripHeights.reduce((sum, h) => sum + h, 0);
 
   return {
     strips,
     originalSize: { width, height },
-    stripSize: { width: opts.stripWidth, height: strips[0]?.height || 0 },
+    stripSize: {
+      widthPx: opts.stripWidth,
+      heightPx: stripHeightPx,
+      widthCm: stripWidthCm,
+      heightCm: stripHeightCm,
+    },
     horizontalSplits,
     verticalSplits,
     totalStrips: strips.length,
     assemblyOrder,
+    totalDimensions: {
+      widthCm: pixelsToCm(totalWidthPx),
+      heightCm: pixelsToCm(totalHeightPx),
+      widthPx: totalWidthPx,
+      heightPx: totalHeightPx,
+    },
+    stripHeights,
   };
 }
 
@@ -317,14 +366,35 @@ function addAlignmentMarks(
 
 /**
  * Create a preview showing how strips will be assembled
+ * Fixed spacing - strips are placed exactly adjacent with no gaps
  */
-export function createAssemblyPreview(result: SplitResult): HTMLCanvasElement {
-  const { strips, horizontalSplits, verticalSplits, stripSize } = result;
+export function createAssemblyPreview(
+  result: SplitResult,
+  options: {
+    /** Gap between strips in pixels for visual separation (default: 0) */
+    gap?: number;
+    /** Show strip numbers */
+    showNumbers?: boolean;
+    /** Background color for gaps */
+    gapColor?: string;
+  } = {},
+): HTMLCanvasElement {
+  const { gap = 0, showNumbers = false, gapColor = "#e0e0e0" } = options;
+  const { strips, horizontalSplits, verticalSplits, stripSize, stripHeights } =
+    result;
 
-  // Calculate preview dimensions
-  const previewWidth = horizontalSplits * stripSize.width;
-  const previewHeight =
-    verticalSplits * (strips[0]?.height || stripSize.height);
+  // Calculate preview dimensions with gaps
+  const previewWidth =
+    horizontalSplits * stripSize.widthPx + (horizontalSplits - 1) * gap;
+
+  // Sum up all strip heights for total height
+  let previewHeight = 0;
+  for (let row = 0; row < verticalSplits; row++) {
+    previewHeight += stripHeights[row] || stripSize.heightPx;
+    if (row < verticalSplits - 1) {
+      previewHeight += gap;
+    }
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = previewWidth;
@@ -332,17 +402,23 @@ export function createAssemblyPreview(result: SplitResult): HTMLCanvasElement {
 
   const ctx = canvas.getContext("2d")!;
 
-  // Fill with light gray to show seams
-  ctx.fillStyle = "#f0f0f0";
+  // Fill background with gap color
+  ctx.fillStyle = gapColor;
   ctx.fillRect(0, 0, previewWidth, previewHeight);
 
-  // Draw each strip
+  // Draw each strip at the correct position
   result.assemblyOrder.forEach(({ row, col }, index) => {
     const strip = strips[index];
     if (!strip) return;
 
-    const x = col * stripSize.width;
-    const y = row * strip.height;
+    // Calculate position accounting for variable heights
+    let y = 0;
+    for (let r = 0; r < row; r++) {
+      y += stripHeights[r] || stripSize.heightPx;
+      y += gap;
+    }
+
+    const x = col * (stripSize.widthPx + gap);
 
     // Create temp canvas for strip
     const tempCanvas = document.createElement("canvas");
@@ -351,14 +427,48 @@ export function createAssemblyPreview(result: SplitResult): HTMLCanvasElement {
     const tempCtx = tempCanvas.getContext("2d")!;
     tempCtx.putImageData(strip, 0, 0);
 
+    // Draw strip at exact position (no gaps in content)
     ctx.drawImage(tempCanvas, x, y);
 
-    // Draw seam line
-    ctx.strokeStyle = "rgba(255, 0, 0, 0.3)";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
-    ctx.strokeRect(x, y, stripSize.width, strip.height);
+    // Draw strip number if requested
+    if (showNumbers) {
+      ctx.save();
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      // Draw number in a circle
+      const centerX = x + stripSize.widthPx / 2;
+      const centerY = y + strip.height / 2;
+
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 16, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "white";
+      ctx.fillText(`${index + 1}`, centerX, centerY);
+      ctx.restore();
+    }
   });
+
+  // Draw subtle cut lines between strips (only if no gap)
+  if (gap === 0 && horizontalSplits > 1) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 0, 0, 0.3)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+
+    for (let col = 1; col < horizontalSplits; col++) {
+      const x = col * stripSize.widthPx;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, previewHeight);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
 
   return canvas;
 }
@@ -378,4 +488,18 @@ export function estimatePrintTime(
   // Approximate: row delay + fixed overhead per strip
   const stripOverhead = 500; // ms per strip for init/finish
   return totalRows * rowDelayMs + strips.length * stripOverhead;
+}
+
+/**
+ * Get human-readable size string
+ */
+export function formatDimensions(widthCm: number, heightCm: number): string {
+  return `${widthCm.toFixed(1)} × ${heightCm.toFixed(1)} cm`;
+}
+
+/**
+ * Get printer physical width in cm
+ */
+export function getPrinterWidthCm(): number {
+  return pixelsToCm(PRINTER_WIDTH);
 }

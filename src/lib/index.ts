@@ -31,8 +31,14 @@ export {
   calculateOptimalSplit,
   createAssemblyPreview,
   estimatePrintTime,
+  formatDimensions,
+  getPrinterWidthCm,
 } from "./image/splitter";
-export type { SplitOptions, SplitResult } from "./image/splitter";
+export type {
+  SplitOptions,
+  SplitResult,
+  StripDimensions,
+} from "./image/splitter";
 
 // Text Rendering & Enhancement
 export {
@@ -54,27 +60,31 @@ export {
   calculateFillScale,
   calculateStripCount,
   calculateScaleForStrips,
-  detectContentBlocks,
   extractRegion,
-  composeBlocks,
-  autoArrangeBlocks,
   trimWhitespace,
+  analyzeFeatureSize,
+  calculateOptimalStripCount,
+  pixelsToCm,
+  cmToPixels,
+  getDimensionsInfo,
+  PRINTER_DPI,
 } from "./image/transform";
 export type {
   Rect,
   TransformOptions,
-  ContentBlock,
-  BlockLayout,
+  FeatureAnalysis,
 } from "./image/transform";
 
-// OCR (Lazy-loaded)
+// PDF Support (Lazy-loaded)
 export {
-  isOCRAvailable,
-  isOCRInitializing,
-  loadOCR,
-  unloadOCR,
-  recognizeText,
-  preprocessForOCR,
-  likelyContainsText,
-} from "./image/ocr";
-export type { OCRResult, OCRWord, OCRLine, OCRProgress } from "./image/ocr";
+  isPDF,
+  getPDFInfo,
+  renderPDFPage,
+  renderAllPDFPages,
+  isPDFJSLoaded,
+} from "./image/pdf";
+export type {
+  PDFPageInfo,
+  PDFDocumentInfo,
+  PDFRenderOptions,
+} from "./image/pdf";
