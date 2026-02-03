@@ -1093,9 +1093,7 @@ function ImagePreview() {
   const [assemblyPreviewUrl, setAssemblyPreviewUrl] = useState<string | null>(
     null,
   );
-  const [viewMode, setViewMode] = useState<"original" | "processed" | "split">(
-    "processed",
-  );
+  const [viewMode, setViewMode] = useState<"original" | "preview">("preview");
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Zoom and pan state
@@ -1324,7 +1322,7 @@ function ImagePreview() {
 
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-slate-700">
-            {(["original", "processed", "split"] as const).map((mode) => (
+            {(["original", "preview"] as const).map((mode) => (
               <button
                 key={mode}
                 className={`px-3 py-1 text-sm transition-colors ${
@@ -1383,7 +1381,7 @@ function ImagePreview() {
 
       <div
         ref={containerRef}
-        className="card-body flex-1 overflow-hidden relative"
+        className="card-body flex-1 overflow-auto relative"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1394,9 +1392,17 @@ function ImagePreview() {
         style={{ cursor: isPanning ? "grabbing" : "grab" }}
       >
         <div
-          className="preview-container min-h-[300px] flex items-center justify-center p-4"
+          className="preview-container flex flex-col items-center p-4"
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+            minWidth: Math.min(
+              1200,
+              selectedImage ? selectedImage.width * zoom + 32 : 300,
+            ),
+            minHeight: Math.min(
+              800,
+              selectedImage ? selectedImage.height * zoom * 2 + 100 : 300,
+            ),
           }}
         >
           {viewMode === "original" && (
@@ -1438,28 +1444,29 @@ function ImagePreview() {
             </div>
           )}
 
-          {viewMode === "processed" && processedUrl && (
-            <img
-              src={processedUrl}
-              alt="Processed"
-              className="max-w-none transition-transform"
-              draggable={false}
-              style={{
-                transform: `scale(${zoom})`,
-                imageRendering: "pixelated",
-              }}
-            />
-          )}
+          {viewMode === "preview" && (
+            <div className="flex flex-col items-center space-y-6">
+              {processedUrl && (
+                <div className="flex flex-col items-center">
+                  <p className="text-sm text-slate-400 mb-2">Processed Image</p>
+                  <img
+                    src={processedUrl}
+                    alt="Processed"
+                    className="border border-slate-600 rounded"
+                    draggable={false}
+                    style={{
+                      transform: `scale(${zoom})`,
+                      imageRendering: "pixelated",
+                      transformOrigin: "center",
+                    }}
+                  />
+                </div>
+              )}
 
-          {viewMode === "split" && (
-            <div
-              className="flex flex-col items-center"
-              style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
-            >
               {splitResult &&
                 splitResult.totalStrips > 1 &&
                 assemblyPreviewUrl && (
-                  <div className="text-center">
+                  <div className="flex flex-col items-center">
                     <p className="text-sm text-slate-400 mb-2">
                       Assembly Preview ({splitResult.totalStrips} strips)
                     </p>
@@ -1468,7 +1475,11 @@ function ImagePreview() {
                       alt="Assembly"
                       className="border border-slate-600 rounded"
                       draggable={false}
-                      style={{ imageRendering: "pixelated" }}
+                      style={{
+                        transform: `scale(${zoom})`,
+                        imageRendering: "pixelated",
+                        transformOrigin: "center",
+                      }}
                     />
                   </div>
                 )}
