@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="12" fill="url(#gradient)"/>
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+  </defs>
+  <!-- Printer body -->
+  <rect x="12" y="24" width="40" height="24" rx="4" fill="white"/>
+  <!-- Paper slot -->
+  <rect x="16" y="20" width="32" height="8" rx="2" fill="#e2e8f0"/>
+  <!-- Paper coming out -->
+  <rect x="20" y="10" width="24" height="14" rx="1" fill="white"/>
+  <!-- Print lines on paper -->
+  <rect x="24" y="14" width="16" height="2" rx="1" fill="#94a3b8"/>
+  <rect x="24" y="18" width="12" height="2" rx="1" fill="#94a3b8"/>
+  <!-- Printer feed -->
+  <rect x="16" y="44" width="32" height="4" rx="1" fill="#cbd5e1"/>
+  <!-- Status LED -->
+  <circle cx="44" cy="32" r="3" fill="#10b981"/>
+  <!-- Bluetooth icon -->
+  <path d="M20 30l6 6-6 6M26 36l-6-6 6-6" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
