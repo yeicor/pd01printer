@@ -22,10 +22,7 @@ export {
   loadImageFromURL,
   createPreviewCanvas,
 } from "./image/processor";
-export type {
-  ProcessingOptions,
-  DitherAlgorithm,
-} from "./image/processor";
+export type { ProcessingOptions, DitherAlgorithm } from "./image/processor";
 
 // Label Splitting
 export {
@@ -37,7 +34,7 @@ export {
 } from "./image/splitter";
 export type { SplitOptions, SplitResult } from "./image/splitter";
 
-// Text Rendering
+// Text Rendering & Enhancement
 export {
   renderText,
   renderStyledText,
@@ -49,3 +46,35 @@ export type {
   TextRegion,
   StyledLine,
 } from "./image/text-optimizer";
+
+// Image Transform (Scale, Crop, Rotate)
+export {
+  transformImage,
+  calculateFitScale,
+  calculateFillScale,
+  calculateStripCount,
+  calculateScaleForStrips,
+  detectContentBlocks,
+  extractRegion,
+  composeBlocks,
+  autoArrangeBlocks,
+  trimWhitespace,
+} from "./image/transform";
+export type {
+  Rect,
+  TransformOptions,
+  ContentBlock,
+  BlockLayout,
+} from "./image/transform";
+
+// OCR (Lazy-loaded)
+export {
+  isOCRAvailable,
+  isOCRInitializing,
+  loadOCR,
+  unloadOCR,
+  recognizeText,
+  preprocessForOCR,
+  likelyContainsText,
+} from "./image/ocr";
+export type { OCRResult, OCRWord, OCRLine, OCRProgress } from "./image/ocr";

@@ -14,6 +14,7 @@ import { ConnectionState, BluetoothDevice } from "../lib/printer/bluetooth";
 import { PrintProgress } from "../lib/printer/protocol";
 import { DitherAlgorithm, ProcessingOptions } from "../lib/image/processor";
 import { SplitOptions } from "../lib/image/splitter";
+import { TransformOptions, ContentBlock, Rect } from "../lib/image/transform";
 
 // Types
 
@@ -29,6 +30,16 @@ export interface ImageItem {
     index: number;
     printed: boolean;
   }[];
+  /** Transform options for this image */
+  transform?: TransformOptions;
+  /** Crop region in original image coordinates */
+  crop?: Rect;
+  /** Scale factor for the image */
+  scale?: number;
+  /** Detected content blocks */
+  blocks?: ContentBlock[];
+  /** Whether blocks have been analyzed */
+  blocksAnalyzed?: boolean;
 }
 
 export interface PrintJob {
@@ -55,6 +66,17 @@ interface PrinterState {
   // Processing Settings
   processingOptions: ProcessingOptions;
   splitOptions: Omit<SplitOptions, "processing">;
+
+  // Transform Settings (global defaults)
+  defaultTransform: TransformOptions;
+
+  // OCR State
+  ocrLoaded: boolean;
+  ocrLoading: boolean;
+  ocrProgress: { status: string; progress: number } | null;
+
+  // Advanced mode (shows block detection, OCR, etc.)
+  advancedMode: boolean;
 
   // Print State
   printQueue: PrintJob[];
@@ -92,6 +114,31 @@ interface PrinterState {
   ) => void;
   resetProcessingOptions: () => void;
 
+  // Actions - Transform
+  setImageTransform: (
+    imageId: string,
+    transform: Partial<TransformOptions>,
+  ) => void;
+  setImageCrop: (imageId: string, crop: Rect | undefined) => void;
+  setImageScale: (imageId: string, scale: number) => void;
+  setImageBlocks: (imageId: string, blocks: ContentBlock[]) => void;
+  updateBlock: (
+    imageId: string,
+    blockId: string,
+    updates: Partial<ContentBlock>,
+  ) => void;
+  clearImageBlocks: (imageId: string) => void;
+
+  // Actions - OCR
+  setOCRLoaded: (loaded: boolean) => void;
+  setOCRLoading: (loading: boolean) => void;
+  setOCRProgress: (
+    progress: { status: string; progress: number } | null,
+  ) => void;
+
+  // Actions - Advanced Mode
+  setAdvancedMode: (enabled: boolean) => void;
+
   // Actions - Print
   addToPrintQueue: (job: Omit<PrintJob, "id" | "status" | "progress">) => void;
   removeFromPrintQueue: (id: string) => void;
@@ -114,14 +161,22 @@ interface PrinterState {
   clearToast: () => void;
 }
 
+// Default transform options (maximize paper usage)
+const defaultTransformOptions: TransformOptions = {
+  scale: 1.0,
+  rotation: 0,
+  flipH: false,
+  flipV: false,
+};
+
 // Default Values
 
 const defaultProcessingOptions: ProcessingOptions = {
   targetWidth: 384,
   brightness: 0,
-  contrast: 10,
-  sharpen: 20,
-  dither: "floyd-steinberg" as DitherAlgorithm,
+  contrast: 0,
+  sharpen: 0,
+  dither: "none" as DitherAlgorithm,
   threshold: 128,
   invert: false,
   gamma: 1.0,
@@ -130,9 +185,9 @@ const defaultProcessingOptions: ProcessingOptions = {
 const defaultSplitOptions: Omit<SplitOptions, "processing"> = {
   stripWidth: 384,
   overlap: 0,
-  alignmentMarks: true,
+  alignmentMarks: false,
   maxHeight: 0,
-  padding: 8,
+  padding: 0,
   rotate: false,
 };
 
@@ -160,6 +215,17 @@ export const useStore = create<PrinterState>()(
       currentPrintJob: null,
       printProgress: null,
       isPrinting: false,
+
+      // Initial State - Transform
+      defaultTransform: defaultTransformOptions,
+
+      // Initial State - OCR
+      ocrLoaded: false,
+      ocrLoading: false,
+      ocrProgress: null,
+
+      // Initial State - Advanced Mode
+      advancedMode: false,
 
       // Initial State - UI
       showSettings: false,
@@ -218,7 +284,70 @@ export const useStore = create<PrinterState>()(
         set({
           processingOptions: defaultProcessingOptions,
           splitOptions: defaultSplitOptions,
+          defaultTransform: defaultTransformOptions,
         }),
+
+      // Actions - Transform
+      setImageTransform: (imageId, transform) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === imageId
+              ? { ...img, transform: { ...img.transform, ...transform } }
+              : img,
+          ),
+        })),
+
+      setImageCrop: (imageId, crop) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === imageId ? { ...img, crop } : img,
+          ),
+        })),
+
+      setImageScale: (imageId, scale) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === imageId ? { ...img, scale } : img,
+          ),
+        })),
+
+      setImageBlocks: (imageId, blocks) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === imageId ? { ...img, blocks, blocksAnalyzed: true } : img,
+          ),
+        })),
+
+      updateBlock: (imageId, blockId, updates) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === imageId
+              ? {
+                  ...img,
+                  blocks: img.blocks?.map((b) =>
+                    b.id === blockId ? { ...b, ...updates } : b,
+                  ),
+                }
+              : img,
+          ),
+        })),
+
+      clearImageBlocks: (imageId) =>
+        set((state) => ({
+          images: state.images.map((img) =>
+            img.id === imageId
+              ? { ...img, blocks: undefined, blocksAnalyzed: false }
+              : img,
+          ),
+        })),
+
+      // Actions - OCR
+      setOCRLoaded: (loaded) => set({ ocrLoaded: loaded }),
+      setOCRLoading: (loading) => set({ ocrLoading: loading }),
+      setOCRProgress: (progress) => set({ ocrProgress: progress }),
+
+      // Actions - Advanced Mode
+      setAdvancedMode: (enabled) => set({ advancedMode: enabled }),
 
       // Actions - Print
       addToPrintQueue: (job) => {
@@ -285,6 +414,8 @@ export const useStore = create<PrinterState>()(
         // Only persist these fields
         processingOptions: state.processingOptions,
         splitOptions: state.splitOptions,
+        defaultTransform: state.defaultTransform,
+        advancedMode: state.advancedMode,
       }),
     },
   ),

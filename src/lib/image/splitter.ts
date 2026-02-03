@@ -143,10 +143,10 @@ export async function splitImage(
           targetWidth: opts.stripWidth, // Ensure width matches
         });
       } else {
-        // Apply default processing for thermal printing
+        // Apply default processing for thermal printing (no dithering by default)
         imageData = await processImage(imageData, {
           targetWidth: opts.stripWidth,
-          dither: "floyd-steinberg",
+          dither: "none",
         });
       }
 

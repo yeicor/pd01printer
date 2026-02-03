@@ -1,8 +1,14 @@
 /**
  * PD01 Label Printer - Main Application Component
+ *
+ * Features:
+ * - Clean, progressive disclosure UI
+ * - Scale and crop controls for images
+ * - Advanced mode with block detection and OCR
+ * - No dithering by default, maximize paper usage
  */
 
-import { useEffect, useCallback, useState, useRef } from "react";
+import { useEffect, useCallback, useState, useRef, Fragment } from "react";
 import {
   Bluetooth,
   BluetoothOff,
@@ -24,6 +30,17 @@ import {
   ZoomIn,
   ZoomOut,
   Download,
+  Crop,
+  RotateCw,
+  Maximize2,
+  Grid3X3,
+  ScanText,
+  Settings2,
+  Scissors,
+  FlipHorizontal,
+  FlipVertical,
+  Keyboard,
+  HelpCircle,
 } from "lucide-react";
 import { useStore, useSelectedImage, ImageItem } from "./store";
 import { usePrinter, PRINTER_WIDTH } from "./hooks/usePrinter";
@@ -34,6 +51,173 @@ import {
   createAssemblyPreview,
 } from "./lib/image/splitter";
 import { renderText } from "./lib/image/text-optimizer";
+import {
+  transformImage,
+  calculateStripCount,
+  calculateScaleForStrips,
+  detectContentBlocks,
+  trimWhitespace,
+} from "./lib/image/transform";
+
+// Keyboard Shortcuts Hook
+function useKeyboardShortcuts() {
+  const { advancedMode, setAdvancedMode, showToast } = useStore();
+  const { connect, disconnect, isConnected } = usePrinter();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in input
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      // Ctrl/Cmd + key shortcuts
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case "b":
+            e.preventDefault();
+            if (isConnected) {
+              disconnect();
+            } else {
+              connect();
+            }
+            break;
+          case "m":
+            e.preventDefault();
+            setAdvancedMode(!advancedMode);
+            showToast("info", advancedMode ? "Simple mode" : "Advanced mode");
+            break;
+        }
+      }
+
+      // Single key shortcuts
+      switch (e.key) {
+        case "?":
+          // Show help - handled by HelpDialog component
+          break;
+        case "Escape":
+          // Could close modals/dialogs
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    advancedMode,
+    setAdvancedMode,
+    connect,
+    disconnect,
+    isConnected,
+    showToast,
+  ]);
+}
+
+// Help Dialog Component
+function HelpDialog({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  if (!isOpen) return null;
+
+  const shortcuts = [
+    { keys: ["Ctrl", "B"], description: "Connect/disconnect printer" },
+    { keys: ["Ctrl", "M"], description: "Toggle Simple/Advanced mode" },
+    { keys: ["?"], description: "Show this help" },
+  ];
+
+  const tips = [
+    "Drag & drop images directly onto the app",
+    "Use 1-4 strip presets for quick scaling",
+    "No dithering works best for text and logos",
+    "Enable Advanced mode for OCR and block detection",
+    "Auto Trim removes whitespace from edges",
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-slate-800 rounded-xl border border-slate-700 max-w-md w-full mx-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+          <div className="flex items-center gap-2">
+            <HelpCircle className="w-5 h-5 text-primary-400" />
+            <h2 className="text-lg font-semibold">Help & Shortcuts</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Keyboard shortcuts */}
+          <div>
+            <h3 className="text-sm font-medium text-slate-300 mb-2">
+              Keyboard Shortcuts
+            </h3>
+            <div className="space-y-2">
+              {shortcuts.map((shortcut, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="text-slate-400">{shortcut.description}</span>
+                  <div className="flex gap-1">
+                    {shortcut.keys.map((key, keyIndex) => (
+                      <Fragment key={keyIndex}>
+                        <kbd className="px-2 py-0.5 bg-slate-900 rounded text-slate-300 text-xs font-mono">
+                          {key}
+                        </kbd>
+                        {keyIndex < shortcut.keys.length - 1 && (
+                          <span className="text-slate-500">+</span>
+                        )}
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tips */}
+          <div>
+            <h3 className="text-sm font-medium text-slate-300 mb-2">Tips</h3>
+            <ul className="space-y-1">
+              {tips.map((tip, index) => (
+                <li
+                  key={index}
+                  className="text-sm text-slate-400 flex items-start gap-2"
+                >
+                  <span className="text-primary-400 mt-1">•</span>
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-700 flex justify-end">
+          <button onClick={onClose} className="btn-primary">
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Toast Component
 function Toast() {
@@ -161,6 +345,7 @@ function ImageUpload() {
             originalUrl: URL.createObjectURL(file),
             width: img.width,
             height: img.height,
+            scale: 1.0,
           };
 
           addImage(imageItem);
@@ -215,6 +400,516 @@ function ImageUpload() {
   );
 }
 
+// Quick Scale Controls Component
+function QuickScaleControls() {
+  const selectedImage = useSelectedImage();
+  const { setImageScale } = useStore();
+
+  if (!selectedImage) return null;
+
+  const currentScale = selectedImage.scale || 1.0;
+  const stripCount = calculateStripCount(selectedImage.width, currentScale);
+
+  const setStrips = (strips: number) => {
+    const newScale = calculateScaleForStrips(selectedImage.width, strips);
+    setImageScale(selectedImage.id, newScale);
+  };
+
+  const presetStrips = [1, 2, 3, 4];
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="flex items-center gap-2">
+          <Maximize2 className="w-5 h-5 text-primary-400" />
+          <span className="font-medium">Size & Strips</span>
+        </div>
+        <span className="text-sm text-slate-400">
+          {stripCount} strip{stripCount !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <div className="card-body space-y-4">
+        {/* Strip count presets */}
+        <div>
+          <label className="input-label mb-2 block">Quick Presets</label>
+          <div className="flex gap-2">
+            {presetStrips.map((strips) => (
+              <button
+                key={strips}
+                onClick={() => setStrips(strips)}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                  stripCount === strips
+                    ? "bg-primary-500 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                {strips} Strip{strips !== 1 ? "s" : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Scale slider */}
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-slate-400">Scale</span>
+            <span className="text-slate-300">
+              {Math.round(currentScale * 100)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0.1}
+            max={3}
+            step={0.01}
+            value={currentScale}
+            onChange={(e) =>
+              setImageScale(selectedImage.id, Number(e.target.value))
+            }
+            className="slider"
+          />
+          <div className="flex justify-between text-xs text-slate-500 mt-1">
+            <span>10%</span>
+            <span>100%</span>
+            <span>300%</span>
+          </div>
+        </div>
+
+        {/* Output info */}
+        <div className="bg-slate-900 rounded-lg p-3 text-sm">
+          <div className="flex justify-between text-slate-400">
+            <span>Output width:</span>
+            <span className="text-slate-200">
+              {Math.round(selectedImage.width * currentScale)}px
+            </span>
+          </div>
+          <div className="flex justify-between text-slate-400">
+            <span>Output height:</span>
+            <span className="text-slate-200">
+              {Math.round(selectedImage.height * currentScale)}px
+            </span>
+          </div>
+          <div className="flex justify-between text-slate-400">
+            <span>Printer width:</span>
+            <span className="text-slate-200">{PRINTER_WIDTH}px</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Transform Controls Component (Advanced)
+function TransformControls() {
+  const selectedImage = useSelectedImage();
+  const { setImageTransform, setImageCrop, showToast, advancedMode } =
+    useStore();
+  // Future: interactive crop mode
+  // const [cropMode, setCropMode] = useState(false);
+  // const [cropStart, setCropStart] = useState<{ x: number; y: number } | null>(null);
+  // const [tempCrop, setTempCrop] = useState<Rect | null>(null);
+
+  if (!selectedImage || !advancedMode) return null;
+
+  const transform = selectedImage.transform || {};
+
+  const handleRotate = () => {
+    const current = transform.rotation || 0;
+    const next = ((current + 90) % 360) as 0 | 90 | 180 | 270;
+    setImageTransform(selectedImage.id, { rotation: next });
+  };
+
+  const handleFlipH = () => {
+    setImageTransform(selectedImage.id, { flipH: !transform.flipH });
+  };
+
+  const handleFlipV = () => {
+    setImageTransform(selectedImage.id, { flipV: !transform.flipV });
+  };
+
+  const handleTrimWhitespace = async () => {
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = selectedImage.originalUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+
+      const { trimmed } = trimWhitespace(imageData);
+      setImageCrop(selectedImage.id, trimmed);
+      showToast("success", "Whitespace trimmed");
+    } catch (error) {
+      showToast("error", "Failed to trim whitespace");
+    }
+  };
+
+  const clearCrop = () => {
+    setImageCrop(selectedImage.id, undefined);
+  };
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="flex items-center gap-2">
+          <Crop className="w-5 h-5 text-primary-400" />
+          <span className="font-medium">Transform</span>
+        </div>
+      </div>
+
+      <div className="card-body space-y-3">
+        {/* Quick actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleRotate}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2"
+            title="Rotate 90°"
+          >
+            <RotateCw className="w-4 h-4" />
+            <span className="text-sm">Rotate</span>
+          </button>
+          <button
+            onClick={handleFlipH}
+            className={`btn-secondary flex-1 flex items-center justify-center gap-2 ${
+              transform.flipH ? "bg-primary-500/20 border-primary-500" : ""
+            }`}
+            title="Flip Horizontal"
+          >
+            <FlipHorizontal className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleFlipV}
+            className={`btn-secondary flex-1 flex items-center justify-center gap-2 ${
+              transform.flipV ? "bg-primary-500/20 border-primary-500" : ""
+            }`}
+            title="Flip Vertical"
+          >
+            <FlipVertical className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Crop/Trim */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleTrimWhitespace}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2"
+          >
+            <Scissors className="w-4 h-4" />
+            <span className="text-sm">Auto Trim</span>
+          </button>
+          {selectedImage.crop && (
+            <button
+              onClick={clearCrop}
+              className="btn-ghost text-red-400 hover:text-red-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {selectedImage.crop && (
+          <div className="text-xs text-slate-400 bg-slate-900 p-2 rounded">
+            Crop: {selectedImage.crop.width}×{selectedImage.crop.height} at (
+            {selectedImage.crop.x}, {selectedImage.crop.y})
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Block Detection Controls (Advanced)
+function BlockDetectionControls() {
+  const selectedImage = useSelectedImage();
+  const { setImageBlocks, clearImageBlocks, showToast, advancedMode } =
+    useStore();
+  const [isDetecting, setIsDetecting] = useState(false);
+
+  if (!selectedImage || !advancedMode) return null;
+
+  const handleDetectBlocks = async () => {
+    setIsDetecting(true);
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = selectedImage.originalUrl;
+      });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, img.width, img.height);
+
+      const blocks = detectContentBlocks(imageData, {
+        minSize: 20,
+        padding: 4,
+        mergeDistance: 10,
+      });
+
+      setImageBlocks(selectedImage.id, blocks);
+      showToast(
+        "success",
+        `Found ${blocks.length} content block${blocks.length !== 1 ? "s" : ""}`,
+      );
+    } catch (error) {
+      showToast("error", "Failed to detect blocks");
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="flex items-center gap-2">
+          <Grid3X3 className="w-5 h-5 text-primary-400" />
+          <span className="font-medium">Content Blocks</span>
+        </div>
+        {selectedImage.blocks && (
+          <span className="text-sm text-slate-400">
+            {selectedImage.blocks.length} found
+          </span>
+        )}
+      </div>
+
+      <div className="card-body space-y-3">
+        <p className="text-sm text-slate-400">
+          Detect regions of content for rearrangement or OCR.
+        </p>
+
+        <div className="flex gap-2">
+          <button
+            onClick={handleDetectBlocks}
+            disabled={isDetecting}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2"
+          >
+            {isDetecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <ScanText className="w-4 h-4" />
+            )}
+            <span className="text-sm">
+              {isDetecting ? "Detecting..." : "Detect Blocks"}
+            </span>
+          </button>
+          {selectedImage.blocks && (
+            <button
+              onClick={() => clearImageBlocks(selectedImage.id)}
+              className="btn-ghost text-red-400 hover:text-red-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Block list */}
+        {selectedImage.blocks && selectedImage.blocks.length > 0 && (
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {selectedImage.blocks.map((block, index) => (
+              <div
+                key={block.id}
+                className="flex items-center gap-2 p-2 bg-slate-900 rounded-lg text-sm"
+              >
+                <span className="w-6 h-6 flex items-center justify-center bg-slate-800 rounded text-xs">
+                  {index + 1}
+                </span>
+                <span className="flex-1 text-slate-300 capitalize">
+                  {block.type}
+                </span>
+                <span className="text-slate-500 text-xs">
+                  {block.bounds.width}×{block.bounds.height}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// OCR Controls Component (Advanced)
+function OCRControls() {
+  const selectedImage = useSelectedImage();
+  const {
+    ocrLoaded,
+    ocrLoading,
+    ocrProgress,
+    setOCRLoaded,
+    setOCRLoading,
+    setOCRProgress,
+    updateBlock,
+    showToast,
+    advancedMode,
+  } = useStore();
+  const [isRunningOCR, setIsRunningOCR] = useState(false);
+
+  if (!selectedImage || !advancedMode) return null;
+
+  // Only show if we have blocks to run OCR on
+  const textBlocks = selectedImage.blocks?.filter(
+    (b) => b.type === "text" || b.type === "unknown",
+  );
+  if (!textBlocks || textBlocks.length === 0) return null;
+
+  const handleLoadOCR = async () => {
+    setOCRLoading(true);
+    try {
+      const { loadOCR } = await import("./lib/image/ocr");
+      await loadOCR((progress) => {
+        setOCRProgress(progress);
+      });
+      setOCRLoaded(true);
+      showToast("success", "OCR engine loaded");
+    } catch (error) {
+      showToast(
+        "error",
+        `Failed to load OCR: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setOCRLoading(false);
+      setOCRProgress(null);
+    }
+  };
+
+  const handleRunOCR = async () => {
+    if (!ocrLoaded || !textBlocks) return;
+
+    setIsRunningOCR(true);
+    try {
+      const { recognizeText } = await import("./lib/image/ocr");
+
+      for (const block of textBlocks) {
+        if (!block.imageData) continue;
+
+        try {
+          const result = await recognizeText(block.imageData);
+          updateBlock(selectedImage.id, block.id, {
+            ocrText: result.text.trim(),
+          });
+        } catch {
+          // Skip blocks that fail OCR
+        }
+      }
+
+      showToast("success", "OCR complete");
+    } catch (error) {
+      showToast("error", "OCR failed");
+    } finally {
+      setIsRunningOCR(false);
+    }
+  };
+
+  const blocksWithOCR = selectedImage.blocks?.filter((b) => b.ocrText);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div className="flex items-center gap-2">
+          <ScanText className="w-5 h-5 text-primary-400" />
+          <span className="font-medium">OCR</span>
+        </div>
+        {ocrLoaded && <span className="badge badge-success">Ready</span>}
+      </div>
+
+      <div className="card-body space-y-3">
+        {!ocrLoaded ? (
+          <>
+            <p className="text-sm text-slate-400">
+              Load Tesseract.js to extract text from content blocks. This
+              downloads ~2MB on first use.
+            </p>
+            <button
+              onClick={handleLoadOCR}
+              disabled={ocrLoading}
+              className="btn-secondary w-full flex items-center justify-center gap-2"
+            >
+              {ocrLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">
+                    {ocrProgress?.status || "Loading..."}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span className="text-sm">Load OCR Engine</span>
+                </>
+              )}
+            </button>
+            {ocrProgress && (
+              <div className="progress-bar">
+                <div
+                  className="progress-bar-fill"
+                  style={{ width: `${ocrProgress.progress}%` }}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-slate-400">
+              Run OCR on {textBlocks.length} text block
+              {textBlocks.length !== 1 ? "s" : ""}.
+            </p>
+            <button
+              onClick={handleRunOCR}
+              disabled={isRunningOCR}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              {isRunningOCR ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Running OCR...</span>
+                </>
+              ) : (
+                <>
+                  <ScanText className="w-4 h-4" />
+                  <span className="text-sm">Extract Text</span>
+                </>
+              )}
+            </button>
+          </>
+        )}
+
+        {/* Show extracted text */}
+        {blocksWithOCR && blocksWithOCR.length > 0 && (
+          <div className="space-y-2 max-h-[200px] overflow-y-auto">
+            {blocksWithOCR.map((block) => (
+              <div
+                key={block.id}
+                className="p-2 bg-slate-900 rounded-lg text-sm"
+              >
+                <div className="text-xs text-slate-500 mb-1">
+                  Block {selectedImage.blocks?.indexOf(block)! + 1}
+                </div>
+                <div className="text-slate-300 whitespace-pre-wrap text-xs">
+                  {block.ocrText}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Processing Controls Component
 function ProcessingControls() {
   const {
@@ -223,8 +918,9 @@ function ProcessingControls() {
     setProcessingOption,
     setSplitOption,
     resetProcessingOptions,
+    advancedMode,
   } = useStore();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const SliderControl = ({
     label,
@@ -266,7 +962,7 @@ function ProcessingControls() {
       >
         <div className="flex items-center gap-2">
           <Sliders className="w-5 h-5 text-primary-400" />
-          <span className="font-medium">Processing Settings</span>
+          <span className="font-medium">Image Settings</span>
         </div>
         {expanded ? (
           <ChevronUp className="w-5 h-5" />
@@ -301,42 +997,46 @@ function ProcessingControls() {
             onChange={(v) => setProcessingOption("sharpen", v)}
           />
 
-          <SliderControl
-            label="Threshold"
-            value={processingOptions.threshold ?? 128}
-            min={0}
-            max={255}
-            onChange={(v) => setProcessingOption("threshold", v)}
-          />
+          {advancedMode && (
+            <>
+              <SliderControl
+                label="Threshold"
+                value={processingOptions.threshold ?? 128}
+                min={0}
+                max={255}
+                onChange={(v) => setProcessingOption("threshold", v)}
+              />
 
-          <SliderControl
-            label="Gamma"
-            value={processingOptions.gamma ?? 1.0}
-            min={0.1}
-            max={3.0}
-            step={0.1}
-            onChange={(v) => setProcessingOption("gamma", v)}
-          />
+              <SliderControl
+                label="Gamma"
+                value={processingOptions.gamma ?? 1.0}
+                min={0.1}
+                max={3.0}
+                step={0.1}
+                onChange={(v) => setProcessingOption("gamma", v)}
+              />
 
-          <div className="space-y-1">
-            <label className="input-label">Dithering Algorithm</label>
-            <select
-              value={processingOptions.dither ?? "floyd-steinberg"}
-              onChange={(e) =>
-                setProcessingOption(
-                  "dither",
-                  e.target.value as ProcessingOptions["dither"],
-                )
-              }
-              className="input"
-            >
-              <option value="floyd-steinberg">Floyd-Steinberg</option>
-              <option value="atkinson">Atkinson</option>
-              <option value="ordered">Ordered (Bayer)</option>
-              <option value="threshold">Simple Threshold</option>
-              <option value="none">None</option>
-            </select>
-          </div>
+              <div className="space-y-1">
+                <label className="input-label">Dithering Algorithm</label>
+                <select
+                  value={processingOptions.dither ?? "none"}
+                  onChange={(e) =>
+                    setProcessingOption(
+                      "dither",
+                      e.target.value as ProcessingOptions["dither"],
+                    )
+                  }
+                  className="input"
+                >
+                  <option value="none">None (Best for text)</option>
+                  <option value="floyd-steinberg">Floyd-Steinberg</option>
+                  <option value="atkinson">Atkinson</option>
+                  <option value="ordered">Ordered (Bayer)</option>
+                  <option value="threshold">Simple Threshold</option>
+                </select>
+              </div>
+            </>
+          )}
 
           <div className="flex items-center justify-between">
             <label className="text-sm text-slate-400">Invert Colors</label>
@@ -350,37 +1050,36 @@ function ProcessingControls() {
             </button>
           </div>
 
-          <hr className="border-slate-700" />
+          {advancedMode && (
+            <>
+              <hr className="border-slate-700" />
 
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-slate-400">Rotate 90°</label>
-            <button
-              className={`toggle ${splitOptions.rotate ? "active" : ""}`}
-              onClick={() => setSplitOption("rotate", !splitOptions.rotate)}
-            >
-              <span className="toggle-thumb" />
-            </button>
-          </div>
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-slate-400">
+                  Alignment Marks
+                </label>
+                <button
+                  className={`toggle ${splitOptions.alignmentMarks ? "active" : ""}`}
+                  onClick={() =>
+                    setSplitOption(
+                      "alignmentMarks",
+                      !splitOptions.alignmentMarks,
+                    )
+                  }
+                >
+                  <span className="toggle-thumb" />
+                </button>
+              </div>
 
-          <div className="flex items-center justify-between">
-            <label className="text-sm text-slate-400">Alignment Marks</label>
-            <button
-              className={`toggle ${splitOptions.alignmentMarks ? "active" : ""}`}
-              onClick={() =>
-                setSplitOption("alignmentMarks", !splitOptions.alignmentMarks)
-              }
-            >
-              <span className="toggle-thumb" />
-            </button>
-          </div>
-
-          <SliderControl
-            label="Padding (px)"
-            value={splitOptions.padding ?? 8}
-            min={0}
-            max={32}
-            onChange={(v) => setSplitOption("padding", v)}
-          />
+              <SliderControl
+                label="Padding (px)"
+                value={splitOptions.padding ?? 0}
+                min={0}
+                max={32}
+                onChange={(v) => setSplitOption("padding", v)}
+              />
+            </>
+          )}
 
           <button
             onClick={resetProcessingOptions}
@@ -432,8 +1131,23 @@ function ImagePreview() {
           img.src = selectedImage.originalUrl;
         });
 
+        // Apply transforms first
+        const imageScale = selectedImage.scale || 1.0;
+        const transform = selectedImage.transform || {};
+        const crop = selectedImage.crop;
+
+        let processedImage = await transformImage(img, {
+          scale: imageScale,
+          crop,
+          rotation: transform.rotation,
+          flipH: transform.flipH,
+          flipV: transform.flipV,
+          targetWidth:
+            PRINTER_WIDTH * calculateStripCount(img.width, imageScale),
+        });
+
         // Split and process image
-        const result = await splitImage(img, {
+        const result = await splitImage(processedImage, {
           ...splitOptions,
           processing: processingOptions,
         });
@@ -480,6 +1194,9 @@ function ImagePreview() {
   }, [
     selectedImage?.id,
     selectedImage?.originalUrl,
+    selectedImage?.scale,
+    selectedImage?.transform,
+    selectedImage?.crop,
     processingOptions,
     splitOptions,
     updateImage,
@@ -549,12 +1266,91 @@ function ImagePreview() {
       <div className="card-body flex-1 overflow-auto">
         <div className="preview-container min-h-[300px] flex items-center justify-center p-4">
           {viewMode === "original" && (
-            <img
-              src={selectedImage.originalUrl}
-              alt="Original"
-              className="max-w-full transition-transform"
-              style={{ transform: `scale(${zoom})` }}
-            />
+            <div className="relative" style={{ transform: `scale(${zoom})` }}>
+              <img
+                src={selectedImage.originalUrl}
+                alt="Original"
+                className="max-w-full"
+              />
+              {/* Block overlay visualization */}
+              {selectedImage.blocks && selectedImage.blocks.length > 0 && (
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  viewBox={`0 0 ${selectedImage.width} ${selectedImage.height}`}
+                  preserveAspectRatio="none"
+                >
+                  {selectedImage.blocks.map((block, index) => (
+                    <g key={block.id}>
+                      <rect
+                        x={block.bounds.x}
+                        y={block.bounds.y}
+                        width={block.bounds.width}
+                        height={block.bounds.height}
+                        fill="none"
+                        stroke={
+                          block.type === "text"
+                            ? "#3b82f6"
+                            : block.type === "barcode"
+                              ? "#22c55e"
+                              : block.type === "qrcode"
+                                ? "#a855f7"
+                                : "#f59e0b"
+                        }
+                        strokeWidth={2}
+                        strokeDasharray={
+                          block.type === "unknown" ? "4,4" : "none"
+                        }
+                      />
+                      <text
+                        x={block.bounds.x + 4}
+                        y={block.bounds.y + 14}
+                        fill={
+                          block.type === "text"
+                            ? "#3b82f6"
+                            : block.type === "barcode"
+                              ? "#22c55e"
+                              : block.type === "qrcode"
+                                ? "#a855f7"
+                                : "#f59e0b"
+                        }
+                        fontSize={12}
+                        fontWeight="bold"
+                      >
+                        {index + 1}: {block.type}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              )}
+              {/* Crop region overlay */}
+              {selectedImage.crop && (
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  viewBox={`0 0 ${selectedImage.width} ${selectedImage.height}`}
+                  preserveAspectRatio="none"
+                >
+                  {/* Darken areas outside crop */}
+                  <path
+                    d={`M0,0 L${selectedImage.width},0 L${selectedImage.width},${selectedImage.height} L0,${selectedImage.height} Z
+                        M${selectedImage.crop.x},${selectedImage.crop.y}
+                        L${selectedImage.crop.x + selectedImage.crop.width},${selectedImage.crop.y}
+                        L${selectedImage.crop.x + selectedImage.crop.width},${selectedImage.crop.y + selectedImage.crop.height}
+                        L${selectedImage.crop.x},${selectedImage.crop.y + selectedImage.crop.height} Z`}
+                    fill="rgba(0,0,0,0.5)"
+                    fillRule="evenodd"
+                  />
+                  <rect
+                    x={selectedImage.crop.x}
+                    y={selectedImage.crop.y}
+                    width={selectedImage.crop.width}
+                    height={selectedImage.crop.height}
+                    fill="none"
+                    stroke="#0ea5e9"
+                    strokeWidth={2}
+                  />
+                </svg>
+              )}
+            </div>
           )}
 
           {viewMode === "processed" && processedUrl && (
@@ -681,6 +1477,9 @@ function ImageList() {
                 <p className="text-xs text-slate-500">
                   {image.width} × {image.height}px
                   {image.strips && ` • ${image.strips.length} strips`}
+                  {image.scale &&
+                    image.scale !== 1 &&
+                    ` • ${Math.round(image.scale * 100)}%`}
                 </p>
               </div>
               <button
@@ -705,6 +1504,8 @@ function PrintControls() {
   const selectedImage = useSelectedImage();
   const { isPrinting, printProgress, printStrips } = usePrinter();
   const { isConnected } = usePrinter();
+  const [energy, setEnergy] = useState(0xffff); // Max darkness by default
+  const [showEnergyControl, setShowEnergyControl] = useState(false);
 
   const handlePrint = async () => {
     if (!selectedImage?.strips || selectedImage.strips.length === 0) {
@@ -728,7 +1529,7 @@ function PrintControls() {
       strips.push(ctx.getImageData(0, 0, img.width, img.height));
     }
 
-    await printStrips(strips);
+    await printStrips(strips, { energy });
   };
 
   const handleDownload = () => {
@@ -749,9 +1550,38 @@ function PrintControls() {
           <Printer className="w-5 h-5 text-primary-400" />
           <span className="font-medium">Print</span>
         </div>
+        <button
+          onClick={() => setShowEnergyControl(!showEnergyControl)}
+          className="text-sm text-slate-400 hover:text-white"
+        >
+          {showEnergyControl ? "Hide" : "Settings"}
+        </button>
       </div>
 
       <div className="card-body space-y-4">
+        {/* Energy/Darkness control */}
+        {showEnergyControl && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-400">Print Darkness</span>
+              <span className="text-slate-300">
+                {Math.round((energy / 0xffff) * 100)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0x8000}
+              max={0xffff}
+              step={0x100}
+              value={energy}
+              onChange={(e) => setEnergy(Number(e.target.value))}
+              className="slider"
+            />
+            <p className="text-xs text-slate-500">
+              Higher values = darker print. Use lower values for thin paper.
+            </p>
+          </div>
+        )}
         {isPrinting && printProgress && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -839,6 +1669,7 @@ function TextLabelCreator() {
       fontWeight: isBold ? "bold" : "normal",
       border: showBorder,
       maxWidth: PRINTER_WIDTH,
+      padding: 4,
     });
 
     // Convert to canvas and URL
@@ -855,6 +1686,7 @@ function TextLabelCreator() {
       originalUrl: canvas.toDataURL(),
       width: imageData.width,
       height: imageData.height,
+      scale: 1.0,
     };
 
     addImage(imageItem);
@@ -935,11 +1767,54 @@ function TextLabelCreator() {
   );
 }
 
+// Advanced Mode Toggle
+function AdvancedModeToggle() {
+  const { advancedMode, setAdvancedMode } = useStore();
+
+  return (
+    <button
+      onClick={() => setAdvancedMode(!advancedMode)}
+      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+        advancedMode
+          ? "bg-primary-500/20 text-primary-400 border border-primary-500/50"
+          : "bg-slate-800 text-slate-400 hover:text-white"
+      }`}
+    >
+      <Settings2 className="w-4 h-4" />
+      <span>{advancedMode ? "Advanced" : "Simple"}</span>
+    </button>
+  );
+}
+
 // Main App Component
 export default function App() {
+  const { advancedMode } = useStore();
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts();
+
+  // Listen for ? key to show help
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === "?" &&
+        !(
+          e.target instanceof HTMLInputElement ||
+          e.target instanceof HTMLTextAreaElement
+        )
+      ) {
+        setShowHelp(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-900">
       <Toast />
+      <HelpDialog isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
@@ -959,7 +1834,17 @@ export default function App() {
               </div>
             </div>
 
-            <ConnectionButton />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowHelp(true)}
+                className="btn-icon text-slate-400 hover:text-white"
+                title="Help & Shortcuts (?)"
+              >
+                <Keyboard className="w-5 h-5" />
+              </button>
+              <AdvancedModeToggle />
+              <ConnectionButton />
+            </div>
           </div>
         </div>
       </header>
@@ -971,6 +1856,10 @@ export default function App() {
           <div className="space-y-6">
             <ImageUpload />
             <ImageList />
+            <QuickScaleControls />
+            {advancedMode && <TransformControls />}
+            {advancedMode && <BlockDetectionControls />}
+            {advancedMode && <OCRControls />}
             <TextLabelCreator />
             <ProcessingControls />
             <PrintControls />
