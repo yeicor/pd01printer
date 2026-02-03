@@ -1088,7 +1088,6 @@ function ImagePreview() {
   const selectedImage = useSelectedImage();
   const { processingOptions, splitOptions, updateImage, screenDpi } =
     useStore();
-  const [processedUrl, setProcessedUrl] = useState<string | null>(null);
   const [splitResult, setSplitResult] = useState<SplitResult | null>(null);
   const [assemblyPreviewUrl, setAssemblyPreviewUrl] = useState<string | null>(
     null,
@@ -1102,6 +1101,12 @@ function ImagePreview() {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Assembly preview dimensions
+  const [assemblyDimensions, setAssemblyDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
 
   // Calculate the zoom level needed to show actual printed size
   // At printer DPI (200), we need to scale by screenDpi/printerDpi
@@ -1125,9 +1130,9 @@ function ImagePreview() {
   // Process image when selection or options change
   useEffect(() => {
     if (!selectedImage) {
-      setProcessedUrl(null);
       setSplitResult(null);
       setAssemblyPreviewUrl(null);
+      setAssemblyDimensions(null);
       prevProcessingInputsRef.current = null;
       return;
     }
@@ -1210,21 +1215,25 @@ function ImagePreview() {
         // Update image with strips
         updateImage(imageId, { strips: stripUrls });
 
-        // Set processed URL (first strip or single image)
-        if (stripUrls.length > 0) {
-          setProcessedUrl(stripUrls[0].url);
-        }
-
         // Create assembly preview - no visual gaps, just cut lines
-        if (result.totalStrips > 1) {
+        if (result.totalStrips > 0) {
           const assemblyCanvas = createAssemblyPreview(result, {
             gap: 0,
             showNumbers: false,
             showHeaders: true,
           });
-          setAssemblyPreviewUrl(assemblyCanvas.toDataURL());
+          const url = assemblyCanvas.toDataURL();
+          setAssemblyPreviewUrl(url);
+
+          // Get dimensions of the assembly preview
+          const img = new Image();
+          img.onload = () => {
+            setAssemblyDimensions({ width: img.width, height: img.height });
+          };
+          img.src = url;
         } else {
           setAssemblyPreviewUrl(null);
+          setAssemblyDimensions(null);
         }
       } catch (error) {
         console.error("Processing error:", error);
@@ -1395,14 +1404,12 @@ function ImagePreview() {
           className="preview-container flex flex-col items-center p-4"
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
-            minWidth: Math.min(
-              1200,
-              selectedImage ? selectedImage.width * zoom + 32 : 300,
-            ),
-            minHeight: Math.min(
-              800,
-              selectedImage ? selectedImage.height * zoom * 2 + 100 : 300,
-            ),
+            width: assemblyDimensions
+              ? Math.min(1200, assemblyDimensions.width * zoom + 32)
+              : 300,
+            height: assemblyDimensions
+              ? Math.min(800, assemblyDimensions.height * zoom + 32)
+              : 300,
           }}
         >
           {viewMode === "original" && (
@@ -1444,47 +1451,27 @@ function ImagePreview() {
             </div>
           )}
 
-          {viewMode === "preview" && (
-            <div className="flex flex-col items-center space-y-6">
-              {processedUrl && (
-                <div className="flex flex-col items-center">
-                  <p className="text-sm text-slate-400 mb-2">Processed Image</p>
-                  <img
-                    src={processedUrl}
-                    alt="Processed"
-                    className="border border-slate-600 rounded"
-                    draggable={false}
-                    style={{
-                      transform: `scale(${zoom})`,
-                      imageRendering: "pixelated",
-                      transformOrigin: "center",
-                    }}
-                  />
-                </div>
-              )}
-
-              {splitResult &&
-                splitResult.totalStrips > 1 &&
-                assemblyPreviewUrl && (
-                  <div className="flex flex-col items-center">
-                    <p className="text-sm text-slate-400 mb-2">
-                      Assembly Preview ({splitResult.totalStrips} strips)
-                    </p>
-                    <img
-                      src={assemblyPreviewUrl}
-                      alt="Assembly"
-                      className="border border-slate-600 rounded"
-                      draggable={false}
-                      style={{
-                        transform: `scale(${zoom})`,
-                        imageRendering: "pixelated",
-                        transformOrigin: "center",
-                      }}
-                    />
-                  </div>
-                )}
-            </div>
-          )}
+          {viewMode === "preview" &&
+            splitResult &&
+            splitResult.totalStrips > 0 &&
+            assemblyPreviewUrl && (
+              <div className="flex flex-col items-center">
+                <p className="text-sm text-slate-400 mb-2">
+                  Assembly Preview ({splitResult.totalStrips} strips)
+                </p>
+                <img
+                  src={assemblyPreviewUrl}
+                  alt="Assembly"
+                  className="border border-slate-600 rounded"
+                  draggable={false}
+                  style={{
+                    transform: `scale(${zoom})`,
+                    imageRendering: "pixelated",
+                    transformOrigin: "center",
+                  }}
+                />
+              </div>
+            )}
 
           {isProcessing && (
             <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
