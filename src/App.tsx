@@ -1109,21 +1109,60 @@ function ImagePreview() {
   // At printer DPI (200), we need to scale by screenDpi/printerDpi
   const actualSizeZoom = screenDpi / PRINTER_DPI;
 
+  // Use ref to track previous processing inputs to prevent unnecessary re-processing
+  const prevProcessingInputsRef = useRef<{
+    id: string;
+    originalUrl: string;
+    scale: number;
+    transform: {
+      rotation?: 0 | 90 | 180 | 270;
+      flipH?: boolean;
+      flipV?: boolean;
+    };
+    crop?: { x: number; y: number; width: number; height: number };
+    processingOptions: ProcessingOptions;
+    splitOptions: { alignmentMarks?: boolean; padding?: number };
+  } | null>(null);
+
   // Process image when selection or options change
   useEffect(() => {
     if (!selectedImage) {
       setProcessedUrl(null);
       setSplitResult(null);
       setAssemblyPreviewUrl(null);
+      prevProcessingInputsRef.current = null;
       return;
     }
 
+    // Create current input object
+    const currentInputs = {
+      id: selectedImage.id,
+      originalUrl: selectedImage.originalUrl,
+      scale: selectedImage.scale || 1.0,
+      transform: selectedImage.transform || {},
+      crop: selectedImage.crop,
+      processingOptions,
+      splitOptions,
+    };
+
+    // Check if inputs have actually changed
+    const hasChanged =
+      JSON.stringify(currentInputs) !==
+      JSON.stringify(prevProcessingInputsRef.current);
+
+    if (!hasChanged) {
+      return; // Skip processing if inputs haven't changed
+    }
+
+    // Update ref with current inputs
+    prevProcessingInputsRef.current = currentInputs;
+
     // Capture values for the async function
-    const imageId = selectedImage.id;
-    const imageUrl = selectedImage.originalUrl;
-    const imageScale = selectedImage.scale || 1.0;
-    const imageTransform = selectedImage.transform || {};
-    const imageCrop = selectedImage.crop;
+    const imageId = currentInputs.id;
+    const imageUrl = currentInputs.originalUrl;
+    const imageScale = currentInputs.scale;
+    const imageTransform = currentInputs.transform;
+    const imageCrop = currentInputs.crop;
 
     const processAsync = async () => {
       setIsProcessing(true);
