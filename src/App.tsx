@@ -395,7 +395,7 @@ function TextLabelPanel({
         </button>
       </div>
 
-      <div className="flex-1 p-3 space-y-3 overflow-auto">
+      <div className="flex-1 p-3 space-y-3">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -562,7 +562,7 @@ function ImageUpload() {
   );
 
   return (
-    <div className="relative">
+    <div className={`relative ${textLabelOpen ? "min-h-[500px]" : ""}`}>
       <div
         className={`drop-zone p-6 text-center cursor-pointer relative ${isDragging ? "dragging" : ""}`}
         onDragOver={handleDragOver}
@@ -605,9 +605,9 @@ function ImageUpload() {
             e.stopPropagation();
             setTextLabelOpen(true);
           }}
-          className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-primary-400 bg-slate-800/80 rounded transition-colors"
+          className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-2 text-sm text-slate-400 hover:text-primary-400 bg-slate-800/80 rounded transition-colors"
         >
-          <Type className="w-3 h-3" />
+          <Type className="w-4 h-4" />
           <span>Text</span>
         </button>
       </div>
