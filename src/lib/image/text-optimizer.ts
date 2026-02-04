@@ -8,7 +8,7 @@
  * - Provides text rendering capabilities for custom labels
  */
 
-import { PRINTER_WIDTH } from '../printer/protocol';
+import { PRINTER_WIDTH } from "../printer/protocol";
 
 export interface TextRegion {
   x: number;
@@ -16,7 +16,7 @@ export interface TextRegion {
   width: number;
   height: number;
   confidence: number;
-  type: 'text' | 'barcode' | 'qrcode' | 'unknown';
+  type: "text" | "barcode" | "qrcode" | "unknown";
 }
 
 export interface TextRenderOptions {
@@ -25,12 +25,12 @@ export interface TextRenderOptions {
   /** Font size in pixels (default: 24) */
   fontSize?: number;
   /** Font weight (default: 'bold') */
-  fontWeight?: 'normal' | 'bold' | 'bolder';
+  fontWeight?: "normal" | "bold" | "bolder";
   /** Line height multiplier (default: 1.2) */
   lineHeight?: number;
-  /** Text alignment (default: 'left') */
-  align?: 'left' | 'center' | 'right';
-  /** Padding in pixels (default: 16) */
+  /** Text alignment (default: 'center') */
+  align?: "left" | "center" | "right";
+  /** Padding in pixels (default: 0) */
   padding?: number;
   /** Maximum width (default: PRINTER_WIDTH) */
   maxWidth?: number;
@@ -45,15 +45,15 @@ export interface TextRenderOptions {
 }
 
 const DEFAULT_TEXT_OPTIONS: Required<TextRenderOptions> = {
-  fontFamily: 'Arial, sans-serif',
+  fontFamily: "Arial, sans-serif",
   fontSize: 24,
-  fontWeight: 'bold',
+  fontWeight: "bold",
   lineHeight: 1.2,
-  align: 'left',
-  padding: 16,
+  align: "center",
+  padding: 0,
   maxWidth: PRINTER_WIDTH,
-  backgroundColor: 'white',
-  textColor: 'black',
+  backgroundColor: "white",
+  textColor: "black",
   border: false,
   borderWidth: 2,
 };
@@ -71,12 +71,31 @@ export function detectTextRegions(imageData: ImageData): TextRegion[] {
 
   // Analyze grid cells for text-like patterns
   const cellSize = 32;
-  const cells: { x: number; y: number; edgeDensity: number; variance: number }[] = [];
+  const cells: {
+    x: number;
+    y: number;
+    edgeDensity: number;
+    variance: number;
+  }[] = [];
 
   for (let y = 0; y < height - cellSize; y += cellSize / 2) {
     for (let x = 0; x < width - cellSize; x += cellSize / 2) {
-      const edgeDensity = computeRegionEdgeDensity(edges, width, x, y, cellSize, cellSize);
-      const variance = computeRegionVariance(data, width, x, y, cellSize, cellSize);
+      const edgeDensity = computeRegionEdgeDensity(
+        edges,
+        width,
+        x,
+        y,
+        cellSize,
+        cellSize,
+      );
+      const variance = computeRegionVariance(
+        data,
+        width,
+        x,
+        y,
+        cellSize,
+        cellSize,
+      );
 
       cells.push({ x, y, edgeDensity, variance });
     }
@@ -84,7 +103,9 @@ export function detectTextRegions(imageData: ImageData): TextRegion[] {
 
   // Find clusters of high edge density (text-like regions)
   const textThreshold = 0.15; // Edge density threshold for text
-  const textCells = cells.filter(c => c.edgeDensity > textThreshold && c.variance > 1000);
+  const textCells = cells.filter(
+    (c) => c.edgeDensity > textThreshold && c.variance > 1000,
+  );
 
   // Merge adjacent cells into regions
   const visited = new Set<string>();
@@ -118,18 +139,27 @@ function computeEdgeMap(imageData: ImageData): Uint8Array {
       // Get grayscale values in 3x3 neighborhood
       const getGray = (px: number, py: number) => {
         const idx = (py * width + px) * 4;
-        return 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+        return (
+          0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]
+        );
       };
 
       // Sobel kernels
       const gx =
-        -getGray(x - 1, y - 1) + getGray(x + 1, y - 1) +
-        -2 * getGray(x - 1, y) + 2 * getGray(x + 1, y) +
-        -getGray(x - 1, y + 1) + getGray(x + 1, y + 1);
+        -getGray(x - 1, y - 1) +
+        getGray(x + 1, y - 1) +
+        -2 * getGray(x - 1, y) +
+        2 * getGray(x + 1, y) +
+        -getGray(x - 1, y + 1) +
+        getGray(x + 1, y + 1);
 
       const gy =
-        -getGray(x - 1, y - 1) - 2 * getGray(x, y - 1) - getGray(x + 1, y - 1) +
-        getGray(x - 1, y + 1) + 2 * getGray(x, y + 1) + getGray(x + 1, y + 1);
+        -getGray(x - 1, y - 1) -
+        2 * getGray(x, y - 1) -
+        getGray(x + 1, y - 1) +
+        getGray(x - 1, y + 1) +
+        2 * getGray(x, y + 1) +
+        getGray(x + 1, y + 1);
 
       const magnitude = Math.sqrt(gx * gx + gy * gy);
       edges[y * width + x] = Math.min(255, magnitude);
@@ -148,7 +178,7 @@ function computeRegionEdgeDensity(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
 ): number {
   let edgeCount = 0;
   const threshold = 50;
@@ -173,7 +203,7 @@ function computeRegionVariance(
   x: number,
   y: number,
   width: number,
-  height: number
+  height: number,
 ): number {
   let sum = 0;
   let sumSq = 0;
@@ -182,14 +212,15 @@ function computeRegionVariance(
   for (let py = y; py < y + height; py++) {
     for (let px = x; px < x + width; px++) {
       const idx = (py * imageWidth + px) * 4;
-      const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      const gray =
+        0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
       sum += gray;
       sumSq += gray * gray;
     }
   }
 
   const mean = sum / count;
-  return (sumSq / count) - (mean * mean);
+  return sumSq / count - mean * mean;
 }
 
 /**
@@ -199,7 +230,7 @@ function floodFillRegion(
   cells: { x: number; y: number; edgeDensity: number; variance: number }[],
   start: { x: number; y: number },
   cellSize: number,
-  visited: Set<string>
+  visited: Set<string>,
 ): TextRegion {
   const stack = [start];
   let minX = start.x;
@@ -211,7 +242,10 @@ function floodFillRegion(
 
   const cellMap = new Map<string, { edgeDensity: number; variance: number }>();
   for (const c of cells) {
-    cellMap.set(`${c.x},${c.y}`, { edgeDensity: c.edgeDensity, variance: c.variance });
+    cellMap.set(`${c.x},${c.y}`, {
+      edgeDensity: c.edgeDensity,
+      variance: c.variance,
+    });
   }
 
   while (stack.length > 0) {
@@ -253,7 +287,7 @@ function floodFillRegion(
     width: maxX - minX,
     height: maxY - minY,
     confidence: cellCount > 0 ? totalConfidence / cellCount : 0,
-    type: 'unknown',
+    type: "unknown",
   };
 }
 
@@ -263,33 +297,54 @@ function floodFillRegion(
 function classifyRegion(
   data: Uint8ClampedArray,
   imageWidth: number,
-  region: TextRegion
-): 'text' | 'barcode' | 'qrcode' | 'unknown' {
+  region: TextRegion,
+): "text" | "barcode" | "qrcode" | "unknown" {
   const { x, y, width, height } = region;
 
   // Check aspect ratio
   const aspectRatio = width / height;
 
   // Analyze line patterns
-  const horizontalLines = countLines(data, imageWidth, x, y, width, height, 'horizontal');
-  const verticalLines = countLines(data, imageWidth, x, y, width, height, 'vertical');
+  const horizontalLines = countLines(
+    data,
+    imageWidth,
+    x,
+    y,
+    width,
+    height,
+    "horizontal",
+  );
+  const verticalLines = countLines(
+    data,
+    imageWidth,
+    x,
+    y,
+    width,
+    height,
+    "vertical",
+  );
 
   // QR codes are roughly square with grid pattern
-  if (aspectRatio > 0.8 && aspectRatio < 1.2 && horizontalLines > 3 && verticalLines > 3) {
-    return 'qrcode';
+  if (
+    aspectRatio > 0.8 &&
+    aspectRatio < 1.2 &&
+    horizontalLines > 3 &&
+    verticalLines > 3
+  ) {
+    return "qrcode";
   }
 
   // Barcodes are typically wide with vertical lines
   if (aspectRatio > 2 && verticalLines > horizontalLines * 2) {
-    return 'barcode';
+    return "barcode";
   }
 
   // Barcodes can also be tall with horizontal lines (rotated)
   if (aspectRatio < 0.5 && horizontalLines > verticalLines * 2) {
-    return 'barcode';
+    return "barcode";
   }
 
-  return 'text';
+  return "text";
 }
 
 /**
@@ -302,20 +357,21 @@ function countLines(
   y: number,
   width: number,
   height: number,
-  direction: 'horizontal' | 'vertical'
+  direction: "horizontal" | "vertical",
 ): number {
   let lines = 0;
   const threshold = 128;
-  const minLineLength = direction === 'horizontal' ? width * 0.5 : height * 0.5;
+  const minLineLength = direction === "horizontal" ? width * 0.5 : height * 0.5;
 
-  if (direction === 'horizontal') {
+  if (direction === "horizontal") {
     for (let py = y; py < y + height; py += 4) {
       let lineLength = 0;
       let prevDark = false;
 
       for (let px = x; px < x + width; px++) {
         const idx = (py * imageWidth + px) * 4;
-        const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+        const gray =
+          0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
         const isDark = gray < threshold;
 
         if (isDark) {
@@ -336,7 +392,8 @@ function countLines(
 
       for (let py = y; py < y + height; py++) {
         const idx = (py * imageWidth + px) * 4;
-        const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+        const gray =
+          0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
         const isDark = gray < threshold;
 
         if (isDark) {
@@ -360,22 +417,22 @@ function countLines(
  */
 export function enhanceTextRegions(
   imageData: ImageData,
-  regions: TextRegion[]
+  regions: TextRegion[],
 ): ImageData {
   const { width, height } = imageData;
   const enhanced = new ImageData(
     new Uint8ClampedArray(imageData.data),
     width,
-    height
+    height,
   );
 
   for (const region of regions) {
     switch (region.type) {
-      case 'text':
+      case "text":
         enhanceText(enhanced, region);
         break;
-      case 'barcode':
-      case 'qrcode':
+      case "barcode":
+      case "qrcode":
         enhanceCode(enhanced, region);
         break;
     }
@@ -399,9 +456,8 @@ function enhanceText(imageData: ImageData, region: TextRegion): void {
       // Increase contrast locally
       for (let c = 0; c < 3; c++) {
         const value = data[idx + c];
-        const enhanced = value < 128
-          ? Math.max(0, value * 0.8)
-          : Math.min(255, value * 1.2);
+        const enhanced =
+          value < 128 ? Math.max(0, value * 0.8) : Math.min(255, value * 1.2);
         data[idx + c] = enhanced;
       }
     }
@@ -420,7 +476,8 @@ function enhanceCode(imageData: ImageData, region: TextRegion): void {
     for (let px = x; px < x + rw && px < width; px++) {
       const idx = (py * width + px) * 4;
 
-      const gray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      const gray =
+        0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
       const value = gray < 128 ? 0 : 255;
 
       data[idx] = value;
@@ -435,13 +492,13 @@ function enhanceCode(imageData: ImageData, region: TextRegion): void {
  */
 export function renderText(
   text: string,
-  options: TextRenderOptions = {}
+  options: TextRenderOptions = {},
 ): ImageData {
   const opts = { ...DEFAULT_TEXT_OPTIONS, ...options };
 
   // Create temporary canvas to measure text
-  const measureCanvas = document.createElement('canvas');
-  const measureCtx = measureCanvas.getContext('2d')!;
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d")!;
 
   measureCtx.font = `${opts.fontWeight} ${opts.fontSize}px ${opts.fontFamily}`;
 
@@ -454,11 +511,11 @@ export function renderText(
   const canvasHeight = Math.ceil(textHeight + opts.padding * 2);
 
   // Create final canvas
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = opts.maxWidth;
   canvas.height = canvasHeight;
 
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
 
   // Background
   ctx.fillStyle = opts.backgroundColor;
@@ -472,22 +529,22 @@ export function renderText(
       opts.borderWidth / 2,
       opts.borderWidth / 2,
       canvas.width - opts.borderWidth,
-      canvas.height - opts.borderWidth
+      canvas.height - opts.borderWidth,
     );
   }
 
   // Text
   ctx.fillStyle = opts.textColor;
   ctx.font = `${opts.fontWeight} ${opts.fontSize}px ${opts.fontFamily}`;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = "top";
 
   // Alignment
   let textX = opts.padding;
-  if (opts.align === 'center') {
-    ctx.textAlign = 'center';
+  if (opts.align === "center") {
+    ctx.textAlign = "center";
     textX = canvas.width / 2;
-  } else if (opts.align === 'right') {
-    ctx.textAlign = 'right';
+  } else if (opts.align === "right") {
+    ctx.textAlign = "right";
     textX = canvas.width - opts.padding;
   }
 
@@ -507,14 +564,14 @@ export function renderText(
 function wrapText(
   ctx: CanvasRenderingContext2D,
   text: string,
-  maxWidth: number
+  maxWidth: number,
 ): string[] {
   const lines: string[] = [];
-  const paragraphs = text.split('\n');
+  const paragraphs = text.split("\n");
 
   for (const paragraph of paragraphs) {
-    const words = paragraph.split(' ');
-    let currentLine = '';
+    const words = paragraph.split(" ");
+    let currentLine = "";
 
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
@@ -542,19 +599,19 @@ function wrapText(
 export interface StyledLine {
   text: string;
   fontSize?: number;
-  fontWeight?: 'normal' | 'bold' | 'bolder';
-  align?: 'left' | 'center' | 'right';
+  fontWeight?: "normal" | "bold" | "bolder";
+  align?: "left" | "center" | "right";
 }
 
 export function renderStyledText(
   lines: StyledLine[],
-  options: Omit<TextRenderOptions, 'fontSize' | 'fontWeight' | 'align'> = {}
+  options: Omit<TextRenderOptions, "fontSize" | "fontWeight" | "align"> = {},
 ): ImageData {
   const opts = { ...DEFAULT_TEXT_OPTIONS, ...options };
 
   // Create temporary canvas to measure text
-  const measureCanvas = document.createElement('canvas');
-  const measureCtx = measureCanvas.getContext('2d')!;
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d")!;
 
   // Calculate total height
   let totalHeight = opts.padding * 2;
@@ -565,11 +622,11 @@ export function renderStyledText(
   }
 
   // Create final canvas
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = opts.maxWidth;
   canvas.height = Math.ceil(totalHeight);
 
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
 
   // Background
   ctx.fillStyle = opts.backgroundColor;
@@ -583,37 +640,41 @@ export function renderStyledText(
       opts.borderWidth / 2,
       opts.borderWidth / 2,
       canvas.width - opts.borderWidth,
-      canvas.height - opts.borderWidth
+      canvas.height - opts.borderWidth,
     );
   }
 
   // Draw each line
   let y = opts.padding;
   ctx.fillStyle = opts.textColor;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = "top";
 
   for (const line of lines) {
     const fontSize = line.fontSize || opts.fontSize;
     const fontWeight = line.fontWeight || opts.fontWeight;
-    const align = line.align || 'left';
+    const align = line.align || "left";
     const lineHeight = fontSize * opts.lineHeight;
 
     ctx.font = `${fontWeight} ${fontSize}px ${opts.fontFamily}`;
 
     let textX = opts.padding;
-    if (align === 'center') {
-      ctx.textAlign = 'center';
+    if (align === "center") {
+      ctx.textAlign = "center";
       textX = canvas.width / 2;
-    } else if (align === 'right') {
-      ctx.textAlign = 'right';
+    } else if (align === "right") {
+      ctx.textAlign = "right";
       textX = canvas.width - opts.padding;
     } else {
-      ctx.textAlign = 'left';
+      ctx.textAlign = "left";
     }
 
     // Wrap if needed
     measureCtx.font = ctx.font;
-    const wrapped = wrapText(measureCtx, line.text, opts.maxWidth - opts.padding * 2);
+    const wrapped = wrapText(
+      measureCtx,
+      line.text,
+      opts.maxWidth - opts.padding * 2,
+    );
 
     for (const wrappedLine of wrapped) {
       ctx.fillText(wrappedLine, textX, y);

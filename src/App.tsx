@@ -1,14 +1,13 @@
 /**
- * PD01 Label Printer - Main Application Component
+ * PD01 Label Printer - Main Application Component (Redesigned)
  *
  * Features:
- * - Clean, progressive disclosure UI
- * - Scale and crop controls for images
- * - PDF support
- * - Accurate size preview (100% zoom = actual printed size)
- * - Pan/drag navigation in preview
- * - Size visualization in centimeters
- * - Compact text label creator integrated with image upload
+ * - Clean, smooth scale bar for any zoom level
+ * - Improved preview with proper canvas sizing and zoom
+ * - Separated strips view with checkbox toggle
+ * - Enhanced text label creator with alignment, padding, preview
+ * - Smart feature detection for optimal initial scaling
+ * - Progressive disclosure of advanced settings
  */
 
 import { useEffect, useCallback, useState, useRef, Fragment } from "react";
@@ -28,14 +27,12 @@ import {
   Info,
   AlertCircle,
   CheckCircle,
-  Sliders,
   Type,
   ZoomIn,
   ZoomOut,
   Download,
   Crop,
   RotateCw,
-  Maximize2,
   Scissors,
   FlipHorizontal,
   FlipVertical,
@@ -43,8 +40,12 @@ import {
   HelpCircle,
   Move,
   FileText,
-  Sparkles,
   Ruler,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Layers,
+  Settings2,
 } from "lucide-react";
 import { useStore, useSelectedImage, ImageItem } from "./store";
 import { usePrinter, PRINTER_WIDTH } from "./hooks/usePrinter";
@@ -64,7 +65,6 @@ import {
   trimWhitespace,
   pixelsToCm,
   PRINTER_DPI,
-  calculateOptimalStripCount,
 } from "./lib/image/transform";
 import { isPDF, renderPDFPage, getPDFInfo } from "./lib/image/pdf";
 
@@ -75,7 +75,6 @@ function useKeyboardShortcuts() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if typing in input
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
@@ -83,7 +82,6 @@ function useKeyboardShortcuts() {
         return;
       }
 
-      // Ctrl/Cmd + key shortcuts
       if (e.ctrlKey || e.metaKey) {
         switch (e.key.toLowerCase()) {
           case "b":
@@ -108,7 +106,6 @@ function useScreenDpi() {
   const { setScreenDpi } = useStore();
 
   useEffect(() => {
-    // Create a 1-inch div and measure its pixel size
     const testDiv = document.createElement("div");
     testDiv.style.width = "1in";
     testDiv.style.height = "1in";
@@ -140,12 +137,11 @@ function HelpDialog({
 
   const tips = [
     "Drag & drop images or PDFs directly onto the app",
-    "Use 1-4 strip presets for quick scaling, or use Auto for smart detection",
+    "Use the scale slider to set any zoom level - strips follow automatically",
+    "Toggle 'Show Separated' to see individual strips alongside the assembled view",
     "At 100% zoom, preview shows actual printed size on your screen",
     "Drag in preview to pan around large images",
     "No dithering works best for text and logos",
-    "Auto Trim removes whitespace from edges",
-    "Sizes are shown in centimeters based on 200 DPI print resolution",
   ];
 
   return (
@@ -171,7 +167,6 @@ function HelpDialog({
         </div>
 
         <div className="p-4 space-y-4">
-          {/* Keyboard shortcuts */}
           <div>
             <h3 className="text-sm font-medium text-slate-300 mb-2">
               Keyboard Shortcuts
@@ -200,7 +195,6 @@ function HelpDialog({
             </div>
           </div>
 
-          {/* Tips */}
           <div>
             <h3 className="text-sm font-medium text-slate-300 mb-2">Tips</h3>
             <ul className="space-y-1">
@@ -327,7 +321,7 @@ function ConnectionButton() {
   );
 }
 
-// Compact Text Label Creator (inline with image upload)
+// Enhanced Text Label Panel with alignment, padding, and preview
 function TextLabelPanel({
   isOpen,
   onClose,
@@ -340,6 +334,33 @@ function TextLabelPanel({
   const [fontSize, setFontSize] = useState(24);
   const [isBold, setIsBold] = useState(true);
   const [showBorder, setShowBorder] = useState(false);
+  const [align, setAlign] = useState<"left" | "center" | "right">("center");
+  const [padding, setPadding] = useState(0);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  // Generate preview whenever settings change
+  useEffect(() => {
+    if (!text.trim()) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const imageData = renderText(text, {
+      fontSize,
+      fontWeight: isBold ? "bold" : "normal",
+      border: showBorder,
+      maxWidth: PRINTER_WIDTH,
+      padding,
+      align,
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.putImageData(imageData, 0, 0);
+    setPreviewUrl(canvas.toDataURL());
+  }, [text, fontSize, isBold, showBorder, align, padding]);
 
   const createTextLabel = () => {
     if (!text.trim()) {
@@ -352,10 +373,10 @@ function TextLabelPanel({
       fontWeight: isBold ? "bold" : "normal",
       border: showBorder,
       maxWidth: PRINTER_WIDTH,
-      padding: 4,
+      padding,
+      align,
     });
 
-    // Convert to canvas and URL
     const canvas = document.createElement("canvas");
     canvas.width = imageData.width;
     canvas.height = imageData.height;
@@ -395,55 +416,116 @@ function TextLabelPanel({
         </button>
       </div>
 
-      <div className="flex-1 p-3 space-y-3">
+      <div className="p-3 space-y-3 overflow-y-auto">
+        {/* Text input */}
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Enter label text..."
-          className="input min-h-[80px] resize-none text-sm"
+          className="input min-h-[60px] resize-none text-sm"
           autoFocus
         />
 
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-slate-400 w-16">Size</label>
-            <input
-              type="range"
-              min={12}
-              max={48}
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="slider flex-1"
-            />
-            <span className="text-xs text-slate-300 w-8">{fontSize}px</span>
-          </div>
+        {/* Font size */}
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-slate-400 w-14">Size</label>
+          <input
+            type="range"
+            min={12}
+            max={72}
+            value={fontSize}
+            onChange={(e) => setFontSize(Number(e.target.value))}
+            className="slider flex-1"
+          />
+          <span className="text-xs text-slate-300 w-10 text-right">
+            {fontSize}px
+          </span>
+        </div>
 
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={isBold}
-                onChange={(e) => setIsBold(e.target.checked)}
-                className="rounded bg-slate-800 border-slate-600"
-              />
-              <span className="text-slate-300">Bold</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                checked={showBorder}
-                onChange={(e) => setShowBorder(e.target.checked)}
-                className="rounded bg-slate-800 border-slate-600"
-              />
-              <span className="text-slate-300">Border</span>
-            </label>
+        {/* Padding */}
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-slate-400 w-14">Padding</label>
+          <input
+            type="range"
+            min={0}
+            max={32}
+            value={padding}
+            onChange={(e) => setPadding(Number(e.target.value))}
+            className="slider flex-1"
+          />
+          <span className="text-xs text-slate-300 w-10 text-right">
+            {padding}px
+          </span>
+        </div>
+
+        {/* Alignment */}
+        <div className="flex items-center gap-3">
+          <label className="text-xs text-slate-400 w-14">Align</label>
+          <div className="flex gap-1 flex-1">
+            {(
+              [
+                { value: "left", icon: AlignLeft },
+                { value: "center", icon: AlignCenter },
+                { value: "right", icon: AlignRight },
+              ] as const
+            ).map(({ value, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => setAlign(value)}
+                className={`flex-1 py-1.5 rounded text-sm flex items-center justify-center transition-colors ${
+                  align === value
+                    ? "bg-primary-500 text-white"
+                    : "bg-slate-700 text-slate-400 hover:text-white"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* Options row */}
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isBold}
+              onChange={(e) => setIsBold(e.target.checked)}
+              className="rounded bg-slate-800 border-slate-600"
+            />
+            <span className="text-slate-300">Bold</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showBorder}
+              onChange={(e) => setShowBorder(e.target.checked)}
+              className="rounded bg-slate-800 border-slate-600"
+            />
+            <span className="text-slate-300">Border</span>
+          </label>
+        </div>
+
+        {/* Preview */}
+        {previewUrl && (
+          <div className="bg-slate-900 rounded-lg p-2">
+            <p className="text-xs text-slate-500 mb-1">Preview</p>
+            <div className="flex justify-center bg-white rounded p-1">
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="max-w-full max-h-24 object-contain"
+                style={{ imageRendering: "pixelated" }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="p-3 border-t border-slate-700">
+      <div className="p-3 border-t border-slate-700 mt-auto">
         <button
           onClick={createTextLabel}
+          disabled={!text.trim()}
           className="btn-primary w-full text-sm py-2"
         >
           Create Label
@@ -451,6 +533,94 @@ function TextLabelPanel({
       </div>
     </div>
   );
+}
+
+// Analyze image feature size using min distance between brightness transitions
+function analyzeFeatureSizeHeuristic(imageData: ImageData): {
+  minFeatureSize: number;
+  recommendedScale: number;
+} {
+  const { width, height, data } = imageData;
+  const targetMinFeatureSize = 3; // Target: 3 pixels min feature size
+
+  // Convert to grayscale
+  const gray = new Uint8Array(width * height);
+  for (let i = 0; i < width * height; i++) {
+    const idx = i * 4;
+    gray[i] = Math.round(
+      0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2],
+    );
+  }
+
+  // Binarize with threshold
+  const threshold = 128;
+  const binary = gray.map((v) => (v < threshold ? 0 : 1));
+
+  // Sample lines to find min distance between transitions
+  const transitionDistances: number[] = [];
+  const sampleStep = Math.max(1, Math.floor(height / 100));
+
+  // Horizontal sampling
+  for (let y = sampleStep; y < height - sampleStep; y += sampleStep) {
+    let lastTransition = -1;
+    let lastValue = binary[y * width];
+
+    for (let x = 1; x < width; x++) {
+      const value = binary[y * width + x];
+      if (value !== lastValue) {
+        if (lastTransition >= 0) {
+          const distance = x - lastTransition;
+          if (distance >= 1 && distance <= 100) {
+            transitionDistances.push(distance);
+          }
+        }
+        lastTransition = x;
+        lastValue = value;
+      }
+    }
+  }
+
+  // Vertical sampling
+  const sampleStepH = Math.max(1, Math.floor(width / 100));
+  for (let x = sampleStepH; x < width - sampleStepH; x += sampleStepH) {
+    let lastTransition = -1;
+    let lastValue = binary[x];
+
+    for (let y = 1; y < height; y++) {
+      const value = binary[y * width + x];
+      if (value !== lastValue) {
+        if (lastTransition >= 0) {
+          const distance = y - lastTransition;
+          if (distance >= 1 && distance <= 100) {
+            transitionDistances.push(distance);
+          }
+        }
+        lastTransition = y;
+        lastValue = value;
+      }
+    }
+  }
+
+  if (transitionDistances.length === 0) {
+    return { minFeatureSize: 10, recommendedScale: 1.0 };
+  }
+
+  // Sort and get the 10th percentile as the minimum feature size
+  transitionDistances.sort((a, b) => a - b);
+  const percentileIdx = Math.floor(transitionDistances.length * 0.1);
+  const minFeatureSize =
+    transitionDistances[percentileIdx] || transitionDistances[0];
+
+  // Calculate scale: if min feature is 5px, we want it to be 3px
+  // So scale = 3/5 = 0.6 (scale down, never zoom in)
+  let recommendedScale = targetMinFeatureSize / minFeatureSize;
+
+  // Never zoom in by default - only scale down
+  if (recommendedScale > 1.0) {
+    recommendedScale = 1.0;
+  }
+
+  return { minFeatureSize, recommendedScale };
 }
 
 // Image Upload Component with integrated text label option
@@ -475,17 +645,25 @@ function ImageUpload() {
               `Loading PDF with ${pdfInfo.numPages} page${pdfInfo.numPages > 1 ? "s" : ""}...`,
             );
 
-            // Render each page as an image
             for (let page = 1; page <= pdfInfo.numPages; page++) {
               const img = await renderPDFPage(file, { page, scale: 2.0 });
               const id = `pdf-${Date.now()}-${page}-${Math.random().toString(36).substr(2, 9)}`;
 
-              // Create a canvas to get the URL
               const canvas = document.createElement("canvas");
               canvas.width = img.width;
               canvas.height = img.height;
               const ctx = canvas.getContext("2d")!;
               ctx.drawImage(img, 0, 0);
+
+              // Analyze feature size for initial scale
+              const imageData = ctx.getImageData(
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+              );
+              const { recommendedScale } =
+                analyzeFeatureSizeHeuristic(imageData);
 
               const imageItem: ImageItem = {
                 id,
@@ -493,7 +671,7 @@ function ImageUpload() {
                 originalUrl: canvas.toDataURL(),
                 width: img.width,
                 height: img.height,
-                scale: 1.0,
+                scale: recommendedScale,
                 isPdf: true,
                 pdfPage: page,
               };
@@ -503,10 +681,9 @@ function ImageUpload() {
 
             showToast("success", `Added ${pdfInfo.numPages} page(s) from PDF`);
           } catch (error) {
-            showToast(
-              "error",
-              `Failed to load PDF: ${error instanceof Error ? error.message : "Unknown error"}`,
-            );
+            const message =
+              error instanceof Error ? error.message : "Unknown error";
+            showToast("error", `Failed to load PDF: ${message}`);
           } finally {
             setIsLoadingPdf(false);
           }
@@ -523,17 +700,29 @@ function ImageUpload() {
           const img = await loadImageFromFile(file);
           const id = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+          // Analyze feature size for initial scale
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const { recommendedScale } = analyzeFeatureSizeHeuristic(imageData);
+
           const imageItem: ImageItem = {
             id,
             name: file.name,
             originalUrl: URL.createObjectURL(file),
             width: img.width,
             height: img.height,
-            scale: 1.0,
+            scale: recommendedScale,
           };
 
           addImage(imageItem);
-          showToast("success", `Added ${file.name}`);
+          showToast(
+            "success",
+            `Added ${file.name}${recommendedScale < 1 ? ` (scaled to ${Math.round(recommendedScale * 100)}%)` : ""}`,
+          );
         } catch {
           showToast("error", `Failed to load ${file.name}`);
         }
@@ -562,7 +751,7 @@ function ImageUpload() {
   );
 
   return (
-    <div className={`relative ${textLabelOpen ? "min-h-[500px]" : ""}`}>
+    <div className={`relative ${textLabelOpen ? "min-h-[400px]" : ""}`}>
       <div
         className={`drop-zone p-6 text-center cursor-pointer relative ${isDragging ? "dragging" : ""}`}
         onDragOver={handleDragOver}
@@ -599,7 +788,6 @@ function ImageUpload() {
           </>
         )}
 
-        {/* Text label toggle button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -612,7 +800,6 @@ function ImageUpload() {
         </button>
       </div>
 
-      {/* Text label panel (slides over) */}
       <TextLabelPanel
         isOpen={textLabelOpen}
         onClose={() => setTextLabelOpen(false)}
@@ -621,72 +808,37 @@ function ImageUpload() {
   );
 }
 
-// Quick Scale Controls Component with Auto-detect
-function QuickScaleControls() {
+// Scale Control - Clean slider for any scale
+function ScaleControl() {
   const selectedImage = useSelectedImage();
-  const { setImageScale, setImageFeatureAnalysis, showToast } = useStore();
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const { setImageScale } = useStore();
 
   if (!selectedImage) return null;
 
   const currentScale = selectedImage.scale || 1.0;
   const stripCount = calculateStripCount(selectedImage.width, currentScale);
 
-  const setStrips = (strips: number) => {
-    const newScale = calculateScaleForStrips(selectedImage.width, strips);
-    setImageScale(selectedImage.id, newScale);
-  };
-
-  const handleAutoDetect = async () => {
-    setIsAnalyzing(true);
-    try {
-      // Load and analyze image
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error("Failed to load image"));
-        img.src = selectedImage.originalUrl;
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, img.width, img.height);
-
-      const result = calculateOptimalStripCount(imageData);
-
-      setImageFeatureAnalysis(selectedImage.id, result.analysis);
-      setImageScale(selectedImage.id, result.scale);
-
-      const msg = result.analysis.hasFineDetails
-        ? `Detected fine details. Using ${result.strips} strip${result.strips > 1 ? "s" : ""} for best quality.`
-        : `Recommended: ${result.strips} strip${result.strips > 1 ? "s" : ""}.`;
-
-      showToast("success", msg);
-    } catch {
-      showToast("error", "Failed to analyze image");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  const presetStrips = [1, 2, 3, 4];
-
-  // Calculate output dimensions in cm
+  // Calculate output dimensions
   const outputWidthPx = Math.round(selectedImage.width * currentScale);
   const outputHeightPx = Math.round(selectedImage.height * currentScale);
   const outputWidthCm = pixelsToCm(outputWidthPx);
   const outputHeightCm = pixelsToCm(outputHeightPx);
 
+  // Calculate scale as percentage for display
+  const scalePercent = Math.round(currentScale * 100);
+
+  // Quick strip presets - calculate what scale each would be
+  const presetScales = [1, 2, 3, 4].map((strips) => ({
+    strips,
+    scale: calculateScaleForStrips(selectedImage.width, strips),
+  }));
+
   return (
     <div className="card">
       <div className="card-header">
         <div className="flex items-center gap-2">
-          <Maximize2 className="w-5 h-5 text-primary-400" />
-          <span className="font-medium">Size & Strips</span>
+          <Ruler className="w-5 h-5 text-primary-400" />
+          <span className="font-medium">Scale</span>
         </div>
         <span className="text-sm text-slate-400">
           {stripCount} strip{stripCount !== 1 ? "s" : ""}
@@ -694,71 +846,59 @@ function QuickScaleControls() {
       </div>
 
       <div className="card-body space-y-4">
-        {/* Strip count presets with Auto option */}
+        {/* Main scale slider */}
         <div>
-          <label className="input-label mb-2 block">Presets</label>
-          <div className="flex gap-2">
-            <button
-              onClick={handleAutoDetect}
-              disabled={isAnalyzing}
-              className="flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-colors bg-primary-500/20 text-primary-400 border border-primary-500/50 hover:bg-primary-500/30 flex items-center justify-center gap-1"
-            >
-              {isAnalyzing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              <span>Auto</span>
-            </button>
-            {presetStrips.map((strips) => (
-              <button
-                key={strips}
-                onClick={() => setStrips(strips)}
-                className={`flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-colors ${
-                  stripCount === strips
-                    ? "bg-primary-500 text-white"
-                    : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                {strips}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Scale slider */}
-        <div>
-          <div className="flex justify-between text-sm mb-1">
+          <div className="flex justify-between text-sm mb-2">
             <span className="text-slate-400">Scale</span>
-            <span className="text-slate-300">
-              {Math.round(currentScale * 100)}%
-            </span>
+            <span className="text-slate-200 font-medium">{scalePercent}%</span>
           </div>
           <input
             type="range"
-            min={0.1}
+            min={0.05}
             max={3}
             step={0.01}
             value={currentScale}
             onChange={(e) =>
               setImageScale(selectedImage.id, Number(e.target.value))
             }
-            className="slider"
+            className="slider w-full"
           />
           <div className="flex justify-between text-xs text-slate-500 mt-1">
-            <span>10%</span>
+            <span>5%</span>
             <span>100%</span>
             <span>300%</span>
           </div>
         </div>
 
-        {/* Output info with cm dimensions */}
+        {/* Quick strip presets */}
+        <div>
+          <label className="text-xs text-slate-500 mb-2 block">
+            Quick presets
+          </label>
+          <div className="flex gap-2">
+            {presetScales.map(({ strips, scale }) => {
+              const isActive = Math.abs(currentScale - scale) < 0.01;
+              return (
+                <button
+                  key={strips}
+                  onClick={() => setImageScale(selectedImage.id, scale)}
+                  className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary-500 text-white"
+                      : "bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600"
+                  }`}
+                >
+                  {strips} strip{strips > 1 ? "s" : ""}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Output info */}
         <div className="bg-slate-900 rounded-lg p-3 text-sm space-y-1">
           <div className="flex justify-between text-slate-400">
-            <span className="flex items-center gap-1">
-              <Ruler className="w-3 h-3" />
-              Output size:
-            </span>
+            <span>Output size:</span>
             <span className="text-slate-200">
               {outputWidthCm.toFixed(1)} × {outputHeightCm.toFixed(1)} cm
             </span>
@@ -775,25 +915,6 @@ function QuickScaleControls() {
               {PRINTER_WIDTH}px ({getPrinterWidthCm().toFixed(1)} cm)
             </span>
           </div>
-
-          {selectedImage.featureAnalysis && (
-            <div className="mt-2 pt-2 border-t border-slate-800">
-              <div className="flex justify-between text-slate-500 text-xs">
-                <span>Detected detail:</span>
-                <span
-                  className={
-                    selectedImage.featureAnalysis.hasFineDetails
-                      ? "text-amber-400"
-                      : "text-emerald-400"
-                  }
-                >
-                  {selectedImage.featureAnalysis.hasFineDetails
-                    ? "Fine"
-                    : "Normal"}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -862,7 +983,6 @@ function TransformControls() {
       </div>
 
       <div className="card-body space-y-3">
-        {/* Quick actions */}
         <div className="flex gap-2">
           <button
             onClick={handleRotate}
@@ -892,7 +1012,6 @@ function TransformControls() {
           </button>
         </div>
 
-        {/* Crop/Trim */}
         <div className="flex gap-2">
           <button
             onClick={handleTrimWhitespace}
@@ -922,8 +1041,8 @@ function TransformControls() {
   );
 }
 
-// Processing Controls Component
-function ProcessingControls() {
+// Collapsible Advanced Settings (Processing Controls)
+function AdvancedSettings() {
   const {
     processingOptions,
     splitOptions,
@@ -972,8 +1091,8 @@ function ProcessingControls() {
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-center gap-2">
-          <Sliders className="w-5 h-5 text-primary-400" />
-          <span className="font-medium">Image Settings</span>
+          <Settings2 className="w-5 h-5 text-primary-400" />
+          <span className="font-medium">Advanced Settings</span>
         </div>
         {expanded ? (
           <ChevronUp className="w-5 h-5" />
@@ -1083,7 +1202,7 @@ function ProcessingControls() {
   );
 }
 
-// Image Preview Component with pan/drag and accurate sizing
+// Improved Image Preview Component
 function ImagePreview() {
   const selectedImage = useSelectedImage();
   const { processingOptions, splitOptions, updateImage, screenDpi } =
@@ -1092,53 +1211,40 @@ function ImagePreview() {
   const [assemblyPreviewUrl, setAssemblyPreviewUrl] = useState<string | null>(
     null,
   );
+  const [separatedStripUrls, setSeparatedStripUrls] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"original" | "preview">("preview");
+  const [showSeparated, setShowSeparated] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Zoom and pan state
-  const [zoom, setZoom] = useState(() => screenDpi / PRINTER_DPI);
+  const actualSizeZoom = screenDpi / PRINTER_DPI;
+  const [zoom, setZoom] = useState(0.5);
   const [isPanning, setIsPanning] = useState(false);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Assembly preview dimensions
-  const [assemblyDimensions, setAssemblyDimensions] = useState<{
+  // Track content dimensions for sizing
+  const [, setContentDimensions] = useState<{
     width: number;
     height: number;
   } | null>(null);
 
-  // Calculate the zoom level needed to show actual printed size
-  // At printer DPI (200), we need to scale by screenDpi/printerDpi
-  const actualSizeZoom = screenDpi / PRINTER_DPI;
-
-  // Use ref to track previous processing inputs to prevent unnecessary re-processing
-  const prevProcessingInputsRef = useRef<{
-    id: string;
-    originalUrl: string;
-    scale: number;
-    transform: {
-      rotation?: 0 | 90 | 180 | 270;
-      flipH?: boolean;
-      flipV?: boolean;
-    };
-    crop?: { x: number; y: number; width: number; height: number };
-    processingOptions: ProcessingOptions;
-    splitOptions: { alignmentMarks?: boolean; padding?: number };
-  } | null>(null);
+  // Prevent unnecessary re-processing
+  const prevProcessingInputsRef = useRef<string | null>(null);
 
   // Process image when selection or options change
   useEffect(() => {
     if (!selectedImage) {
       setSplitResult(null);
       setAssemblyPreviewUrl(null);
-      setAssemblyDimensions(null);
+      setSeparatedStripUrls([]);
+      setContentDimensions(null);
       prevProcessingInputsRef.current = null;
       return;
     }
 
-    // Create current input object
-    const currentInputs = {
+    const currentInputs = JSON.stringify({
       id: selectedImage.id,
       originalUrl: selectedImage.originalUrl,
       scale: selectedImage.scale || 1.0,
@@ -1146,26 +1252,20 @@ function ImagePreview() {
       crop: selectedImage.crop,
       processingOptions,
       splitOptions,
-    };
+    });
 
-    // Check if inputs have actually changed
-    const hasChanged =
-      JSON.stringify(currentInputs) !==
-      JSON.stringify(prevProcessingInputsRef.current);
-
-    if (!hasChanged) {
-      return; // Skip processing if inputs haven't changed
+    if (currentInputs === prevProcessingInputsRef.current) {
+      return;
     }
 
-    // Update ref with current inputs
     prevProcessingInputsRef.current = currentInputs;
 
-    // Capture values for the async function
-    const imageId = currentInputs.id;
-    const imageUrl = currentInputs.originalUrl;
-    const imageScale = currentInputs.scale;
-    const imageTransform = currentInputs.transform;
-    const imageCrop = currentInputs.crop;
+    const imageUrl = selectedImage.originalUrl;
+    const imageScale = selectedImage.scale || 1.0;
+    const imageTransform = selectedImage.transform || {};
+    const imageCrop = selectedImage.crop;
+    const imageId = selectedImage.id;
+    const imageWidth = selectedImage.width;
 
     const processAsync = async () => {
       setIsProcessing(true);
@@ -1180,14 +1280,17 @@ function ImagePreview() {
           img.src = imageUrl;
         });
 
+        // Calculate the output width based on scale and strip count
+        const stripCount = calculateStripCount(imageWidth, imageScale);
+        const targetOutputWidth = stripCount * PRINTER_WIDTH;
+
         const processedImage = await transformImage(img, {
           scale: imageScale,
           crop: imageCrop,
           rotation: imageTransform.rotation,
           flipH: imageTransform.flipH,
           flipV: imageTransform.flipV,
-          targetWidth:
-            PRINTER_WIDTH * calculateStripCount(img.width, imageScale),
+          targetWidth: targetOutputWidth,
         });
 
         // Split and process image
@@ -1212,28 +1315,28 @@ function ImagePreview() {
           };
         });
 
+        // Store separated strip URLs
+        setSeparatedStripUrls(stripUrls.map((s) => s.url));
+
         // Update image with strips
         updateImage(imageId, { strips: stripUrls });
 
-        // Create assembly preview - no visual gaps, just cut lines
+        // Create assembly preview
         if (result.totalStrips > 0) {
           const assemblyCanvas = createAssemblyPreview(result, {
             gap: 0,
             showNumbers: false,
-            showHeaders: true,
+            showHeaders: false,
           });
           const url = assemblyCanvas.toDataURL();
           setAssemblyPreviewUrl(url);
-
-          // Get dimensions of the assembly preview
-          const img = new Image();
-          img.onload = () => {
-            setAssemblyDimensions({ width: img.width, height: img.height });
-          };
-          img.src = url;
+          setContentDimensions({
+            width: assemblyCanvas.width,
+            height: assemblyCanvas.height,
+          });
         } else {
           setAssemblyPreviewUrl(null);
-          setAssemblyDimensions(null);
+          setContentDimensions(null);
         }
       } catch (error) {
         console.error("Processing error:", error);
@@ -1253,7 +1356,6 @@ function ImagePreview() {
   // Pan handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
-      // Left click
       setIsPanning(true);
       setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
     }
@@ -1268,15 +1370,9 @@ function ImagePreview() {
     }
   };
 
-  const handleMouseUp = () => {
-    setIsPanning(false);
-  };
+  const handleMouseUp = () => setIsPanning(false);
+  const handleMouseLeave = () => setIsPanning(false);
 
-  const handleMouseLeave = () => {
-    setIsPanning(false);
-  };
-
-  // Touch handlers for mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       setIsPanning(true);
@@ -1296,20 +1392,18 @@ function ImagePreview() {
     }
   };
 
-  const handleTouchEnd = () => {
-    setIsPanning(false);
-  };
+  const handleTouchEnd = () => setIsPanning(false);
 
-  // Zoom presets
-  const zoomPresets = [
-    { label: "50%", value: 0.5 },
-    { label: "100%", value: actualSizeZoom, isActual: true },
-    { label: "200%", value: actualSizeZoom * 2 },
-  ];
+  // Handle zoom with wheel
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom((z) => Math.max(0.1, Math.min(4, z + delta)));
+  };
 
   if (!selectedImage) {
     return (
-      <div className="card h-full flex items-center justify-center">
+      <div className="card h-full flex items-center justify-center min-h-[400px]">
         <div className="text-center text-slate-500">
           <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
           <p>Select an image to preview</p>
@@ -1319,7 +1413,7 @@ function ImagePreview() {
   }
 
   return (
-    <div className="card h-full flex flex-col">
+    <div className="card h-full flex flex-col min-h-[500px]">
       <div className="card-header flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Eye className="w-5 h-5 text-primary-400" />
@@ -1330,6 +1424,7 @@ function ImagePreview() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* View mode toggle */}
           <div className="flex rounded-lg overflow-hidden border border-slate-700">
             {(["original", "preview"] as const).map((mode) => (
               <button
@@ -1346,6 +1441,22 @@ function ImagePreview() {
             ))}
           </div>
 
+          {/* Show separated toggle */}
+          {viewMode === "preview" &&
+            splitResult &&
+            splitResult.totalStrips > 1 && (
+              <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSeparated}
+                  onChange={(e) => setShowSeparated(e.target.checked)}
+                  className="rounded bg-slate-700 border-slate-600"
+                />
+                <span>Show Separated</span>
+              </label>
+            )}
+
+          {/* Zoom controls */}
           <div className="flex items-center gap-1 border-l border-slate-700 pl-2">
             <button
               className="btn-icon"
@@ -1355,27 +1466,22 @@ function ImagePreview() {
               <ZoomOut className="w-4 h-4" />
             </button>
 
-            {/* Zoom presets dropdown/buttons */}
-            <div className="flex gap-1">
-              {zoomPresets.map((preset) => (
-                <button
-                  key={preset.label}
-                  className={`px-2 py-1 text-xs rounded transition-colors ${
-                    Math.abs(zoom - preset.value) < 0.01
-                      ? "bg-primary-500 text-white"
-                      : "bg-slate-800 text-slate-400 hover:text-white"
-                  } ${preset.isActual ? "border border-amber-500/50" : ""}`}
-                  onClick={() => setZoom(preset.value)}
-                  title={
-                    preset.isActual
-                      ? "100% = Actual printed size on screen"
-                      : undefined
-                  }
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={4}
+              step={0.1}
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="w-20 h-1.5 rounded-full appearance-none bg-slate-700 cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${((zoom - 0.1) / 3.9) * 100}%, #334155 ${((zoom - 0.1) / 3.9) * 100}%, #334155 100%)`,
+              }}
+            />
+
+            <span className="text-xs text-slate-400 w-12 text-center">
+              {Math.round(zoom * 100)}%
+            </span>
 
             <button
               className="btn-icon"
@@ -1384,13 +1490,25 @@ function ImagePreview() {
             >
               <ZoomIn className="w-4 h-4" />
             </button>
+
+            <button
+              className={`px-2 py-1 text-xs rounded transition-colors ml-1 ${
+                Math.abs(zoom - actualSizeZoom) < 0.01
+                  ? "bg-primary-500 text-white"
+                  : "bg-slate-700 text-slate-400 hover:text-white"
+              }`}
+              onClick={() => setZoom(actualSizeZoom)}
+              title="Actual printed size"
+            >
+              Actual
+            </button>
           </div>
         </div>
       </div>
 
       <div
         ref={containerRef}
-        className="card-body flex-1 overflow-auto relative"
+        className="flex-1 overflow-hidden relative bg-slate-900"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1398,36 +1516,36 @@ function ImagePreview() {
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onWheel={handleWheel}
         style={{ cursor: isPanning ? "grabbing" : "grab" }}
       >
         <div
-          className="preview-container flex flex-col items-center p-4"
+          className="absolute inset-0 flex items-start justify-center p-4 overflow-visible"
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
-            width: assemblyDimensions
-              ? Math.min(1200, assemblyDimensions.width * zoom + 32)
-              : 300,
-            height: assemblyDimensions
-              ? Math.min(800, assemblyDimensions.height * zoom + 32)
-              : 300,
           }}
         >
           {viewMode === "original" && (
-            <div className="relative" style={{ transform: `scale(${zoom})` }}>
+            <div
+              className="relative flex-shrink-0"
+              style={{
+                transform: `scale(${zoom})`,
+                transformOrigin: "top center",
+              }}
+            >
               <img
                 src={selectedImage.originalUrl}
                 alt="Original"
-                className="max-w-none"
+                className="max-w-none shadow-lg"
                 draggable={false}
+                style={{ imageRendering: "auto" }}
               />
-              {/* Crop region overlay */}
               {selectedImage.crop && (
                 <svg
                   className="absolute inset-0 w-full h-full pointer-events-none"
                   viewBox={`0 0 ${selectedImage.width} ${selectedImage.height}`}
                   preserveAspectRatio="none"
                 >
-                  {/* Darken areas outside crop */}
                   <path
                     d={`M0,0 L${selectedImage.width},0 L${selectedImage.width},${selectedImage.height} L0,${selectedImage.height} Z
                         M${selectedImage.crop.x},${selectedImage.crop.y}
@@ -1453,23 +1571,49 @@ function ImagePreview() {
 
           {viewMode === "preview" &&
             splitResult &&
-            splitResult.totalStrips > 0 &&
-            assemblyPreviewUrl && (
-              <div className="flex flex-col items-center">
-                <p className="text-sm text-slate-400 mb-2">
-                  Assembly Preview ({splitResult.totalStrips} strips)
-                </p>
-                <img
-                  src={assemblyPreviewUrl}
-                  alt="Assembly"
-                  className="border border-slate-600 rounded"
-                  draggable={false}
-                  style={{
-                    transform: `scale(${zoom})`,
-                    imageRendering: "pixelated",
-                    transformOrigin: "center",
-                  }}
-                />
+            splitResult.totalStrips > 0 && (
+              <div
+                className="flex flex-col items-center gap-6 flex-shrink-0"
+                style={{
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "top center",
+                }}
+              >
+                {/* Assembly preview */}
+                {assemblyPreviewUrl && (
+                  <div className="flex flex-col items-center">
+                    <img
+                      src={assemblyPreviewUrl}
+                      alt="Assembled"
+                      className="border border-slate-600 rounded shadow-lg"
+                      draggable={false}
+                      style={{ imageRendering: "pixelated" }}
+                    />
+                  </div>
+                )}
+
+                {/* Separated strips */}
+                {showSeparated && separatedStripUrls.length > 1 && (
+                  <div className="flex flex-col items-center gap-4 border-t border-slate-700 pt-4">
+                    <p className="text-sm text-slate-500">Individual Strips</p>
+                    <div className="flex gap-4 flex-wrap justify-center">
+                      {separatedStripUrls.map((url, index) => (
+                        <div key={index} className="flex flex-col items-center">
+                          <span className="text-xl font-bold text-slate-400 mb-1">
+                            {index + 1}
+                          </span>
+                          <img
+                            src={url}
+                            alt={`Strip ${index + 1}`}
+                            className="border border-slate-600 rounded shadow-md"
+                            draggable={false}
+                            style={{ imageRendering: "pixelated" }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1483,7 +1627,7 @@ function ImagePreview() {
         {/* Pan indicator */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1 text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded">
           <Move className="w-3 h-3" />
-          <span>Drag to pan</span>
+          <span>Drag to pan • Scroll to zoom</span>
         </div>
       </div>
 
@@ -1526,7 +1670,7 @@ function ImageList() {
     <div className="card">
       <div className="card-header">
         <div className="flex items-center gap-2">
-          <ImageIcon className="w-5 h-5 text-primary-400" />
+          <Layers className="w-5 h-5 text-primary-400" />
           <span className="font-medium">Images ({images.length})</span>
         </div>
         <button
@@ -1538,7 +1682,7 @@ function ImageList() {
       </div>
 
       <div className="card-body">
-        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+        <div className="space-y-2 max-h-[200px] overflow-y-auto">
           {images.map((image) => (
             <div
               key={image.id}
@@ -1552,13 +1696,12 @@ function ImageList() {
               <img
                 src={image.originalUrl}
                 alt={image.name}
-                className="w-12 h-12 object-cover rounded"
+                className="w-10 h-10 object-cover rounded"
               />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{image.name}</p>
                 <p className="text-xs text-slate-500">
                   {image.width} × {image.height}px
-                  {image.isPdf && " • PDF"}
                   {image.strips && ` • ${image.strips.length} strips`}
                   {image.scale &&
                     image.scale !== 1 &&
@@ -1587,7 +1730,7 @@ function PrintControls() {
   const selectedImage = useSelectedImage();
   const { isPrinting, printProgress, printStrips } = usePrinter();
   const { isConnected } = usePrinter();
-  const [energy, setEnergy] = useState(0xffff); // Max darkness by default
+  const [energy, setEnergy] = useState(0xffff);
   const [showEnergyControl, setShowEnergyControl] = useState(false);
 
   const handlePrint = async () => {
@@ -1595,7 +1738,6 @@ function PrintControls() {
       return;
     }
 
-    // Load strip images and convert to ImageData
     const strips: ImageData[] = [];
     for (const strip of selectedImage.strips) {
       const img = new Image();
@@ -1642,7 +1784,6 @@ function PrintControls() {
       </div>
 
       <div className="card-body space-y-4">
-        {/* Energy/Darkness control */}
         {showEnergyControl && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -1665,6 +1806,7 @@ function PrintControls() {
             </p>
           </div>
         )}
+
         {isPrinting && printProgress && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
@@ -1736,13 +1878,9 @@ function PrintControls() {
 export default function App() {
   const [showHelp, setShowHelp] = useState(false);
 
-  // Register keyboard shortcuts
   useKeyboardShortcuts();
-
-  // Calculate screen DPI for accurate preview
   useScreenDpi();
 
-  // Listen for ? key to show help
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -1800,12 +1938,12 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Controls */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             <ImageUpload />
             <ImageList />
-            <QuickScaleControls />
+            <ScaleControl />
             <TransformControls />
-            <ProcessingControls />
+            <AdvancedSettings />
             <PrintControls />
           </div>
 

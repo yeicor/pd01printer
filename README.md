@@ -20,34 +20,40 @@ A modern web application for printing labels on PD01/GB01 thermal printers using
 - **Invert Colors** - For printing dark images on thermal paper
 
 ### 🔍 Smart Feature Detection
-- **Auto Strip Count** - Analyzes image to detect smallest features (lines, text)
-- **Optimal Scaling** - Automatically suggests best scale to preserve readability
-- **Fine Detail Warning** - Alerts when images contain delicate features
+- **Automatic Initial Scale** - Analyzes image to detect smallest features and sets optimal scale
+- **Min Feature Heuristic** - Detects minimum distance between brightness transitions
+- **Never Zooms In** - Default scale only reduces, never enlarges to preserve quality
 
-### 📐 Scale & Crop
-- **Auto Button** - One-click intelligent scaling based on feature analysis
-- **Quick Strip Presets** - One-click scaling for 1, 2, 3, or 4 strips
-- **Custom Scale** - Fine-grained control from 10% to 300%
-- **Auto Trim** - Remove whitespace from image edges automatically
-- **Rotate & Flip** - Transform images for optimal printing orientation
+### 📐 Continuous Scale Control
+- **Smooth Scale Slider** - Set any scale from 5% to 300%
+- **Automatic Strip Calculation** - Strips follow the scale automatically
+- **Quick Strip Presets** - One-click buttons for 1, 2, 3, or 4 strips
+- **Real-time Dimensions** - See output size in cm and pixels as you adjust
 
 ### ✂️ Label Splitting
 - **Vertical Strip Splitting** - Split wide images for the 384px printer width
+- **Separated View Toggle** - Checkbox to show individual strips alongside assembled preview
 - **Zero Padding Default** - Maximize paper usage
 - **Optional Alignment Marks** - Help with reassembly when enabled
-- **Assembly Preview** - See how strips will look when pasted together
 
-### 📏 Real-World Size Preview
-- **100% Actual Size** - Preview matches exact printed dimensions on your screen
-- **Dimensions in Centimeters** - See real physical sizes, not just pixels
-- **Pan & Drag** - Navigate around large previews easily
-- **Zoom Presets** - Quick access to Fit, 50%, 100% (actual), and 200% zoom
+### 📏 Improved Preview
+- **Smooth Zoom Slider** - Continuous zoom from 10% to 400%
+- **Mouse Wheel Zoom** - Scroll to zoom in/out
+- **Pan & Drag** - Navigate around large previews with click-drag
+- **Actual Size Button** - Quick access to 100% printed size view
+- **Proper Canvas Sizing** - Preview properly handles all zoom levels without cropping
 
-### ✏️ Text Label Creator
-- **Integrated Panel** - Quick access from the image upload area
-- **Font Size Control** - Adjustable from 12px to 48px
-- **Bold & Border Options** - Customize label appearance
-- **Instant Creation** - Generate label images ready to print
+### ✏️ Enhanced Text Label Creator
+- **Text Alignment** - Left, center, or right alignment options
+- **Adjustable Padding** - Default 0px, adjustable up to 32px
+- **Live Preview** - See your label as you type and adjust settings
+- **Compact Layout** - Uses only required height for components
+- **Font Size Range** - 12px to 72px for any label size
+
+### ⚙️ Progressive Disclosure
+- **Clean Default UI** - Essential controls visible at a glance
+- **Advanced Settings** - Collapsible panel for image adjustments
+- **Quick Access** - Transform controls always visible for common operations
 
 ### 🌐 Progressive Web App
 - **Offline Support** - Works offline after first load
@@ -89,46 +95,52 @@ npm run preview
 
 1. **Connect Printer** - Click "Connect Printer" and select your device
 2. **Upload Image** - Drag & drop images or PDFs, or click to upload
-3. **Adjust Size** - Use "Auto" for smart scaling or select strip presets
-4. **Preview** - Check actual printed size at 100% zoom
+3. **Adjust Scale** - Use the scale slider to set your desired size
+4. **Preview** - Check the preview, toggle "Show Separated" to see individual strips
 5. **Print** - Click "Print X Strips" to send to printer
 
-### Size Controls
+### Scale Controls
 
-The **Size & Strips** panel offers multiple scaling options:
+The **Scale** panel provides smooth, continuous control:
 
-- **Auto** - Analyzes image features and suggests optimal scale
-- **1 Strip** - Scale image to fit printer width (384px / 4.9cm)
-- **2 Strips** - Double width, prints as 2 vertical strips
-- **3/4 Strips** - For larger labels
-- **Custom Scale** - Use the slider for precise control
+- **Scale Slider** - Drag to set any scale from 5% to 300%
+- **Quick Presets** - Click "1 strip", "2 strips", etc. for common sizes
+- **Auto Detection** - Images are automatically scaled based on feature analysis
+
+The number of strips updates automatically as you adjust the scale.
 
 ### Understanding Dimensions
 
 All dimensions are shown in both pixels and centimeters:
 - **Printer Width**: 384px = 4.9cm (at 200 DPI)
 - **Output Size**: Shows final printed dimensions
-- **Strip Size**: Individual strip measurements
+- **Strip Width**: Individual strip measurements
 
 ### Preview Navigation
 
+- **Zoom Slider** - Smooth control from 10% to 400%
+- **Mouse Wheel** - Scroll to zoom in/out
 - **Drag to Pan** - Click and drag to move around the preview
-- **Zoom Presets** - Use Fit, 50%, 100%, or 200%
-- **100% Zoom** - Shows actual printed size on your screen
+- **Actual Button** - Shows exact printed size on your screen
+- **Show Separated** - Checkbox to display individual strips below the assembled view
 
 ### Creating Text Labels
 
 1. Click the "Text" button in the upload area
 2. Enter your text in the panel
-3. Adjust font size with the slider
-4. Toggle Bold and Border options
-5. Click "Create Label"
+3. Adjust font size with the slider (12-72px)
+4. Set padding (default: 0px)
+5. Choose alignment (left, center, right)
+6. Toggle Bold and Border options
+7. See the live preview update as you type
+8. Click "Create Label"
 
 ### Importing PDFs
 
 Simply drag & drop a PDF file or select it from the file picker:
 - All pages are automatically imported as separate images
 - PDFs are rendered at 2x scale for high quality
+- Each page gets automatic feature detection and scaling
 - Each page can be printed independently
 
 ### Printing Tips
@@ -136,8 +148,7 @@ Simply drag & drop a PDF file or select it from the file picker:
 - **For Text/Graphics**: Keep dithering set to "None"
 - **For Photos**: Try "Floyd-Steinberg" or "Atkinson" dithering
 - **For Thin Paper**: Reduce print darkness in settings
-- **For Wide Labels**: Use Auto or manual strip selection
-- **Fine Details**: Use Auto to ensure features remain readable
+- **For Wide Labels**: Adjust scale and check strip count
 
 ## Browser Compatibility
 
@@ -162,7 +173,7 @@ pd01printer/
 │   │   └── image/
 │   │       ├── processor.ts   # Dithering & adjustments
 │   │       ├── splitter.ts    # Strip splitting
-│   │       ├── transform.ts   # Scale, crop, rotate, feature analysis
+│   │       ├── transform.ts   # Scale, crop, rotate
 │   │       ├── text-optimizer.ts  # Text rendering
 │   │       └── pdf.ts         # PDF loading (lazy)
 │   ├── store/
@@ -207,6 +218,17 @@ pd01printer/
 | PRINT_ROW | 0xA2 | Send bitmap row |
 | FEED_PAPER | 0xBD | Feed paper |
 | LATTICE_END | 0xA6 | End print |
+
+### Feature Detection Algorithm
+
+The application uses a heuristic based on minimum distance between brightness transitions:
+
+1. Convert image to binary (black/white)
+2. Sample horizontal and vertical lines
+3. Measure distances between consecutive transitions
+4. Take the 10th percentile as the minimum feature size
+5. Calculate scale to make minimum feature = 3 pixels
+6. Never zoom in (scale ≤ 1.0) to preserve quality
 
 ## GitHub Pages Deployment
 
@@ -259,14 +281,19 @@ npm run typecheck # TypeScript check
 - Increase contrast and sharpening
 
 ### Text too small after printing
-- Use the "Auto" button to analyze and scale appropriately
-- Check the "Fine" detail indicator - if shown, more strips are recommended
-- Manually increase the number of strips
+- Check the initial auto-scaling message
+- Manually increase the scale if needed
+- Use more strips for larger output
 
 ### Strips don't align
-- Enable alignment marks in Image Settings
+- Enable alignment marks in Advanced Settings
 - Use a ruler to align edges
 - Print on a flat surface
+
+### "Failed to load PDF"
+- Ensure you're connected to the internet (PDF.js loads from CDN)
+- Try refreshing the page
+- Check browser console for specific errors
 
 ## Contributing
 

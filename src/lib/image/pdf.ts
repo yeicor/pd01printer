@@ -44,9 +44,9 @@ interface PDFViewport {
 }
 
 interface PDFJSLib {
-  getDocument(
-    src: string | ArrayBuffer | { data: ArrayBuffer },
-  ): { promise: Promise<PDFDocumentProxy> };
+  getDocument(src: string | ArrayBuffer | { data: ArrayBuffer }): {
+    promise: Promise<PDFDocumentProxy>;
+  };
   GlobalWorkerOptions: { workerSrc: string };
 }
 
@@ -54,8 +54,45 @@ interface PDFJSLib {
 let pdfjs: PDFJSLib | null = null;
 let loadPromise: Promise<PDFJSLib> | null = null;
 
+// CDN options for fallback
+const PDFJS_VERSION = "4.0.379";
+const CDN_URLS = [
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`,
+  `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build`,
+  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build`,
+];
+
 /**
- * Lazily load pdf.js library
+ * Load a script from URL with timeout
+ */
+function loadScript(url: string, timeout: number = 10000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = url;
+    script.async = true;
+
+    const timer = setTimeout(() => {
+      script.remove();
+      reject(new Error(`Timeout loading script: ${url}`));
+    }, timeout);
+
+    script.onload = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+
+    script.onerror = () => {
+      clearTimeout(timer);
+      script.remove();
+      reject(new Error(`Failed to load script: ${url}`));
+    };
+
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Lazily load pdf.js library with fallback CDNs
  */
 async function loadPdfJs(): Promise<PDFJSLib> {
   if (pdfjs) {
@@ -67,31 +104,39 @@ async function loadPdfJs(): Promise<PDFJSLib> {
   }
 
   loadPromise = (async () => {
-    // Load pdf.js from CDN
-    const PDFJS_VERSION = "4.0.379";
-    const PDFJS_CDN = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+    let lastError: Error | null = null;
 
-    // Create script element for the main library
-    await new Promise<void>((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = `${PDFJS_CDN}/pdf.min.js`;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load pdf.js"));
-      document.head.appendChild(script);
-    });
+    // Try each CDN in order
+    for (const cdnBase of CDN_URLS) {
+      try {
+        // Try to load the main library
+        await loadScript(`${cdnBase}/pdf.min.js`);
 
-    // Get the library from window
-    const lib = (window as unknown as { pdfjsLib: PDFJSLib }).pdfjsLib;
-    if (!lib) {
-      throw new Error("pdf.js not found on window");
+        // Get the library from window
+        const lib = (window as unknown as { pdfjsLib: PDFJSLib }).pdfjsLib;
+        if (!lib) {
+          throw new Error("pdf.js not found on window after loading");
+        }
+
+        // Set worker source from same CDN
+        lib.GlobalWorkerOptions.workerSrc = `${cdnBase}/pdf.worker.min.js`;
+
+        pdfjs = lib;
+        return lib;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn(
+          `Failed to load pdf.js from ${cdnBase}:`,
+          lastError.message,
+        );
+        // Continue to next CDN
+      }
     }
 
-    // Set worker source
-    lib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.js`;
-
-    pdfjs = lib;
-    return lib;
+    // All CDNs failed
+    throw new Error(
+      `Failed to load pdf.js from any CDN. Please check your internet connection. Last error: ${lastError?.message || "Unknown"}`,
+    );
   })();
 
   return loadPromise;
@@ -102,8 +147,7 @@ async function loadPdfJs(): Promise<PDFJSLib> {
  */
 export function isPDF(file: File): boolean {
   return (
-    file.type === "application/pdf" ||
-    file.name.toLowerCase().endsWith(".pdf")
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
   );
 }
 
