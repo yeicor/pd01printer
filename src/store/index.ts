@@ -166,7 +166,7 @@ const defaultProcessingOptions: ProcessingOptions = {
   brightness: 0,
   contrast: 0,
   sharpen: 0,
-  dither: "none" as DitherAlgorithm,
+  dither: "threshold" as DitherAlgorithm,
   threshold: 128,
   invert: false,
   gamma: 1.0,

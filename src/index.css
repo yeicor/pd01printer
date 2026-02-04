@@ -113,18 +113,46 @@ html {
     .slider {
         @apply w-full h-2 rounded-full appearance-none cursor-pointer;
         @apply bg-slate-700;
+        -webkit-appearance: none;
+        touch-action: none;
+    }
+
+    .slider::-webkit-slider-runnable-track {
+        @apply h-2 rounded-full;
+        @apply bg-slate-700;
     }
 
     .slider::-webkit-slider-thumb {
-        @apply appearance-none w-4 h-4 rounded-full;
-        @apply bg-primary-500 cursor-pointer;
+        -webkit-appearance: none;
+        @apply w-4 h-4 rounded-full;
+        @apply bg-primary-500 cursor-grab;
         @apply hover:bg-primary-400 transition-colors;
+        @apply active:cursor-grabbing active:scale-110;
+        margin-top: -4px;
+    }
+
+    .slider::-moz-range-track {
+        @apply h-2 rounded-full;
+        @apply bg-slate-700;
     }
 
     .slider::-moz-range-thumb {
         @apply w-4 h-4 rounded-full border-0;
-        @apply bg-primary-500 cursor-pointer;
+        @apply bg-primary-500 cursor-grab;
         @apply hover:bg-primary-400 transition-colors;
+        @apply active:cursor-grabbing active:scale-110;
+    }
+
+    .slider:focus {
+        outline: none;
+    }
+
+    .slider:focus::-webkit-slider-thumb {
+        @apply ring-2 ring-primary-400 ring-offset-2 ring-offset-slate-800;
+    }
+
+    .slider:focus::-moz-range-thumb {
+        @apply ring-2 ring-primary-400 ring-offset-2 ring-offset-slate-800;
     }
 
     /* Toggle/Switch styles */
@@ -269,6 +297,59 @@ html {
         #faf8f5 100%
     );
     background-size: 100% 4px;
+}
+
+/* Touch-friendly improvements */
+@media (pointer: coarse) {
+    /* Larger touch targets on touch devices */
+    .btn-icon {
+        @apply p-3;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* Larger slider thumbs for touch */
+    .slider::-webkit-slider-thumb {
+        @apply w-6 h-6;
+        margin-top: -8px;
+    }
+
+    .slider::-moz-range-thumb {
+        @apply w-6 h-6;
+    }
+
+    /* Prevent text selection during touch interactions */
+    .card,
+    .drop-zone {
+        -webkit-user-select: none;
+        user-select: none;
+    }
+
+    /* Better tap highlighting */
+    button,
+    [role="button"] {
+        -webkit-tap-highlight-color: rgba(14, 165, 233, 0.2);
+    }
+}
+
+/* Prevent pull-to-refresh and overscroll on touch devices */
+html,
+body {
+    overscroll-behavior: none;
+}
+
+/* Disable touch callout (long-press menu) on interactive elements */
+.preview-viewport,
+[style*="touch-action: none"] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+/* Smooth touch scrolling for scrollable areas */
+.overflow-y-auto,
+.overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
 }
 
 /* Connection status indicator */

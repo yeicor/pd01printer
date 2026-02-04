@@ -169,7 +169,7 @@ export async function splitImage(
         // Apply default processing for thermal printing (no dithering by default)
         imageData = await processImage(imageData, {
           targetWidth: opts.stripWidth,
-          dither: "none",
+          dither: "threshold",
         });
       }
 

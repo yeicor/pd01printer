@@ -72,6 +72,9 @@ export function cmToPixels(cm: number): number {
 
 /**
  * Apply transformations to an image
+ *
+ * The scale is applied precisely. If targetWidth is provided and larger than
+ * the scaled image, padding is added to fill the width (for strip alignment).
  */
 export async function transformImage(
   source: HTMLImageElement | HTMLCanvasElement | ImageBitmap | ImageData,
@@ -97,22 +100,46 @@ export async function transformImage(
     canvas = flipCanvas(canvas, opts.flipH, opts.flipV);
   }
 
-  // Apply scale
+  // Apply scale precisely - this is the user's chosen scale
   if (opts.scale !== 1.0) {
     const newWidth = Math.round(canvas.width * opts.scale);
     const newHeight = Math.round(canvas.height * opts.scale);
     canvas = resizeCanvas(canvas, newWidth, newHeight);
   }
 
-  // Scale to target width while maintaining aspect ratio
-  if (canvas.width !== opts.targetWidth) {
-    const aspectRatio = canvas.height / canvas.width;
-    const targetHeight = Math.round(opts.targetWidth * aspectRatio);
-    canvas = resizeCanvas(canvas, opts.targetWidth, targetHeight);
+  // If targetWidth is specified and larger than the scaled image,
+  // add padding to center the image within the target width.
+  // This allows precise scaling while still fitting strip boundaries.
+  if (opts.targetWidth && canvas.width < opts.targetWidth) {
+    canvas = padCanvasToWidth(canvas, opts.targetWidth);
   }
 
   const ctx = canvas.getContext("2d")!;
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+/**
+ * Pad canvas to a target width, centering the content
+ */
+function padCanvasToWidth(
+  canvas: HTMLCanvasElement,
+  targetWidth: number,
+): HTMLCanvasElement {
+  const output = document.createElement("canvas");
+  output.width = targetWidth;
+  output.height = canvas.height;
+
+  const ctx = output.getContext("2d")!;
+
+  // Fill with white background
+  ctx.fillStyle = "white";
+  ctx.fillRect(0, 0, output.width, output.height);
+
+  // Center the original canvas
+  const offsetX = Math.floor((targetWidth - canvas.width) / 2);
+  ctx.drawImage(canvas, offsetX, 0);
+
+  return output;
 }
 
 /**

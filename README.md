@@ -258,7 +258,7 @@ npm run typecheck # TypeScript check
 - **Tailwind CSS 3** - Styling
 - **Zustand 5** - State management
 - **Lucide React** - Icons
-- **PDF.js** - PDF rendering (CDN, lazy-loaded)
+- **PDF.js** - PDF rendering (bundled, lazy-loaded)
 - **Vite PWA** - Progressive Web App
 
 ## Troubleshooting
@@ -291,7 +291,7 @@ npm run typecheck # TypeScript check
 - Print on a flat surface
 
 ### "Failed to load PDF"
-- Ensure you're connected to the internet (PDF.js loads from CDN)
+- PDF.js is bundled locally and loads automatically when needed
 - Try refreshing the page
 - Check browser console for specific errors
 
@@ -311,7 +311,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - [catprinter](https://github.com/rbaron/catprinter) - Protocol research
 - [PD01 Protocol Documentation](https://github.com/rhnvrm/catprinter/blob/master/docs/pd01-protocol.md)
-- [PDF.js](https://mozilla.github.io/pdf.js/) - PDF rendering engine
+- [PDF.js](https://mozilla.github.io/pdf.js/) - PDF rendering engine (bundled)
 
 ## Related Projects
 

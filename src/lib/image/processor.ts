@@ -9,9 +9,13 @@
  * - Inversion for dark images
  */
 
-import { PRINTER_WIDTH } from '../printer/protocol';
+import { PRINTER_WIDTH } from "../printer/protocol";
 
-export type DitherAlgorithm = 'none' | 'floyd-steinberg' | 'atkinson' | 'ordered' | 'threshold';
+export type DitherAlgorithm =
+  | "floyd-steinberg"
+  | "atkinson"
+  | "ordered"
+  | "threshold";
 
 export interface ProcessingOptions {
   /** Target width in pixels (default: PRINTER_WIDTH = 384) */
@@ -37,7 +41,7 @@ const DEFAULT_OPTIONS: Required<ProcessingOptions> = {
   brightness: 0,
   contrast: 0,
   sharpen: 0,
-  dither: 'floyd-steinberg',
+  dither: "floyd-steinberg",
   threshold: 128,
   invert: false,
   gamma: 1.0,
@@ -48,7 +52,7 @@ const DEFAULT_OPTIONS: Required<ProcessingOptions> = {
  */
 export async function processImage(
   source: HTMLImageElement | HTMLCanvasElement | ImageBitmap | ImageData,
-  options: ProcessingOptions = {}
+  options: ProcessingOptions = {},
 ): Promise<ImageData> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
@@ -91,19 +95,19 @@ export async function processImage(
  * Get ImageData from various sources
  */
 async function getImageData(
-  source: HTMLImageElement | HTMLCanvasElement | ImageBitmap | ImageData
+  source: HTMLImageElement | HTMLCanvasElement | ImageBitmap | ImageData,
 ): Promise<ImageData> {
   if (source instanceof ImageData) {
     // Clone the ImageData
     return new ImageData(
       new Uint8ClampedArray(source.data),
       source.width,
-      source.height
+      source.height,
     );
   }
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
 
   if (source instanceof HTMLCanvasElement) {
     canvas.width = source.width;
@@ -127,12 +131,12 @@ function resizeImage(imageData: ImageData, targetWidth: number): ImageData {
   const aspectRatio = imageData.height / imageData.width;
   const targetHeight = Math.round(targetWidth * aspectRatio);
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d")!;
 
   // Create source canvas
-  const srcCanvas = document.createElement('canvas');
-  const srcCtx = srcCanvas.getContext('2d')!;
+  const srcCanvas = document.createElement("canvas");
+  const srcCtx = srcCanvas.getContext("2d")!;
   srcCanvas.width = imageData.width;
   srcCanvas.height = imageData.height;
   srcCtx.putImageData(imageData, 0, 0);
@@ -141,7 +145,7 @@ function resizeImage(imageData: ImageData, targetWidth: number): ImageData {
   canvas.width = targetWidth;
   canvas.height = targetHeight;
   ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(srcCanvas, 0, 0, targetWidth, targetHeight);
 
   return ctx.getImageData(0, 0, targetWidth, targetHeight);
@@ -152,7 +156,7 @@ function resizeImage(imageData: ImageData, targetWidth: number): ImageData {
  */
 function applyAdjustments(
   imageData: ImageData,
-  opts: Required<ProcessingOptions>
+  opts: Required<ProcessingOptions>,
 ): ImageData {
   const { brightness, contrast } = opts;
   if (brightness === 0 && contrast === 0) {
@@ -248,11 +252,7 @@ function applySharpen(imageData: ImageData, amount: number): ImageData {
   const output = new Uint8ClampedArray(data);
 
   // 3x3 Laplacian kernel for edge detection
-  const kernel = [
-    0, -1, 0,
-    -1, 5, -1,
-    0, -1, 0
-  ];
+  const kernel = [0, -1, 0, -1, 5, -1, 0, -1, 0];
 
   // Apply convolution
   for (let y = 1; y < height - 1; y++) {
@@ -287,17 +287,16 @@ function applySharpen(imageData: ImageData, amount: number): ImageData {
 function applyDithering(
   imageData: ImageData,
   algorithm: DitherAlgorithm,
-  threshold: number
+  threshold: number,
 ): ImageData {
   switch (algorithm) {
-    case 'none':
-    case 'threshold':
+    case "threshold":
       return applyThreshold(imageData, threshold);
-    case 'floyd-steinberg':
+    case "floyd-steinberg":
       return floydSteinbergDither(imageData, threshold);
-    case 'atkinson':
+    case "atkinson":
       return atkinsonDither(imageData, threshold);
-    case 'ordered':
+    case "ordered":
       return orderedDither(imageData);
     default:
       return floydSteinbergDither(imageData, threshold);
@@ -324,7 +323,10 @@ function applyThreshold(imageData: ImageData, threshold: number): ImageData {
  * Floyd-Steinberg dithering
  * Distributes quantization error to neighboring pixels
  */
-function floydSteinbergDither(imageData: ImageData, threshold: number): ImageData {
+function floydSteinbergDither(
+  imageData: ImageData,
+  threshold: number,
+): ImageData {
   const { width, height } = imageData;
   const data = new Float32Array(imageData.data.length);
 
@@ -347,19 +349,19 @@ function floydSteinbergDither(imageData: ImageData, threshold: number): ImageDat
       // Distribute error to neighboring pixels
       // Right: 7/16
       if (x + 1 < width) {
-        data[idx + 4] += error * 7 / 16;
+        data[idx + 4] += (error * 7) / 16;
       }
       // Bottom-left: 3/16
       if (x - 1 >= 0 && y + 1 < height) {
-        data[idx + width * 4 - 4] += error * 3 / 16;
+        data[idx + width * 4 - 4] += (error * 3) / 16;
       }
       // Bottom: 5/16
       if (y + 1 < height) {
-        data[idx + width * 4] += error * 5 / 16;
+        data[idx + width * 4] += (error * 5) / 16;
       }
       // Bottom-right: 1/16
       if (x + 1 < width && y + 1 < height) {
-        data[idx + width * 4 + 4] += error * 1 / 16;
+        data[idx + width * 4 + 4] += (error * 1) / 16;
       }
     }
   }
@@ -399,9 +401,12 @@ function atkinsonDither(imageData: ImageData, threshold: number): ImageData {
 
       // Atkinson pattern: 6 neighbors, each gets 1/8 of error
       const offsets = [
-        [1, 0], [2, 0],           // Right, Right+1
-        [-1, 1], [0, 1], [1, 1], // Bottom row
-        [0, 2]                    // Two below
+        [1, 0],
+        [2, 0], // Right, Right+1
+        [-1, 1],
+        [0, 1],
+        [1, 1], // Bottom row
+        [0, 2], // Two below
       ];
 
       for (const [dx, dy] of offsets) {
@@ -434,7 +439,7 @@ function orderedDither(imageData: ImageData): ImageData {
     [0, 8, 2, 10],
     [12, 4, 14, 6],
     [3, 11, 1, 9],
-    [15, 7, 13, 5]
+    [15, 7, 13, 5],
   ];
 
   const matrixSize = 4;
@@ -459,11 +464,11 @@ function orderedDither(imageData: ImageData): ImageData {
  * Create a preview canvas with processed image
  */
 export function createPreviewCanvas(imageData: ImageData): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = imageData.width;
   canvas.height = imageData.height;
 
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext("2d")!;
   ctx.putImageData(imageData, 0, 0);
 
   return canvas;
@@ -484,7 +489,7 @@ export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Failed to load image'));
+      reject(new Error("Failed to load image"));
     };
 
     img.src = url;
@@ -497,10 +502,10 @@ export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
 export function loadImageFromURL(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    img.crossOrigin = "anonymous";
 
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () => reject(new Error("Failed to load image"));
 
     img.src = url;
   });
