@@ -88,6 +88,55 @@ export function ImagePreview() {
     height: number;
   } | null>(null);
 
+  // Track container size for clamping
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+
+  // Compute effective dimensions for clamping
+  const baseWidth = selectedImage?.crop?.width || selectedImage?.width || 0;
+  const baseHeight = selectedImage?.crop?.height || selectedImage?.height || 0;
+  const isRotated90or270 =
+    selectedImage?.transform?.rotation === 90 ||
+    selectedImage?.transform?.rotation === 270;
+  const effectiveWidth = isRotated90or270 ? baseHeight : baseWidth;
+  const effectiveHeight = isRotated90or270 ? baseWidth : baseHeight;
+
+  // Clamp pan offset to keep image partly in viewport
+  const clampPanOffset = useCallback(
+    (offset: { x: number; y: number }) => {
+      const imageWidth = effectiveWidth * effectiveZoom;
+      const imageHeight = effectiveHeight * effectiveZoom;
+      const margin = 50; // pixels to keep visible
+      const centerX = containerSize.width / 2;
+      const minX = margin - centerX - imageWidth / 2;
+      const maxX = containerSize.width - margin - centerX + imageWidth / 2;
+      const minY = margin - imageHeight;
+      const maxY = containerSize.height - margin;
+      return {
+        x: Math.max(minX, Math.min(maxX, offset.x)),
+        y: Math.max(minY, Math.min(maxY, offset.y)),
+      };
+    },
+    [effectiveWidth, effectiveHeight, effectiveZoom, containerSize],
+  );
+
+  // Update container size on resize
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setContainerSize({ width: rect.width, height: rect.height });
+      }
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, []);
+
+  // Clamp pan offset when zoom or container size changes
+  useEffect(() => {
+    setPanOffset((current) => clampPanOffset(current));
+  }, [clampPanOffset]);
+
   // Prevent unnecessary re-processing
   const prevProcessingInputsRef = useRef<string | null>(null);
 
@@ -227,10 +276,11 @@ export function ImagePreview() {
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (isPanning) {
-      setPanOffset({
+      const newOffset = {
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y,
-      });
+      };
+      setPanOffset(clampPanOffset(newOffset));
     }
   };
 
@@ -265,10 +315,11 @@ export function ImagePreview() {
     (e: React.TouchEvent) => {
       if (e.touches.length === 1 && isPanning) {
         // Single finger pan
-        setPanOffset({
+        const newOffset = {
           x: e.touches[0].clientX - panStart.x,
           y: e.touches[0].clientY - panStart.y,
-        });
+        };
+        setPanOffset(clampPanOffset(newOffset));
       } else if (
         e.touches.length === 2 &&
         initialPinchDistance &&
@@ -282,7 +333,13 @@ export function ImagePreview() {
         setZoom(newZoom);
       }
     },
-    [isPanning, panStart, initialPinchDistance, initialPinchZoom],
+    [
+      isPanning,
+      panStart,
+      initialPinchDistance,
+      initialPinchZoom,
+      clampPanOffset,
+    ],
   );
 
   const handleTouchEnd = useCallback(() => {
