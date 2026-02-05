@@ -158,7 +158,7 @@ export function TextLabelPanel({ isOpen, onClose }: TextLabelPanelProps) {
               <button
                 key={value}
                 onClick={() => setAlign(value)}
-                className={`flex-1 py-1.5 rounded text-sm flex items-center justify-center transition-colors ${
+                className={`flex-1 py-1.5 rounded text-sm flex items-center justify-center transition-colors cursor-pointer ${
                   align === value
                     ? "bg-primary-500 text-white"
                     : "bg-slate-700 text-slate-400 hover:text-white"
