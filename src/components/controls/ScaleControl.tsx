@@ -6,11 +6,14 @@
  * functionality for optimal scaling based on feature detection.
  */
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, RefreshCw, Ruler } from 'lucide-react';
-import { useStore, useSelectedImage } from '../../store';
-import { calculateStripCount, calculateScaleForStrips } from '../../lib/image/transform';
-import { analyzeFeatureSizeHeuristic } from '../../utils';
+import { useState } from "react";
+import { ChevronDown, ChevronUp, RefreshCw, Ruler } from "lucide-react";
+import { useStore, useSelectedImage } from "../../store";
+import {
+  calculateStripCount,
+  calculateScaleForStrips,
+} from "../../lib/image/transform";
+import { analyzeFeatureSizeHeuristic } from "../../utils";
 
 export function ScaleControl() {
   const selectedImage = useSelectedImage();
@@ -43,27 +46,27 @@ export function ScaleControl() {
   const handleResetScale = async () => {
     try {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
+      img.crossOrigin = "anonymous";
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = () => reject(new Error('Failed to load image'));
+        img.onerror = () => reject(new Error("Failed to load image"));
         img.src = selectedImage.originalUrl;
       });
 
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = img.width;
       canvas.height = img.height;
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
       const imageData = ctx.getImageData(0, 0, img.width, img.height);
       const { recommendedScale } = analyzeFeatureSizeHeuristic(imageData);
       setImageScale(selectedImage.id, recommendedScale);
       showToast(
-        'success',
-        `Scale reset to ${Math.round(recommendedScale * 100)}%`
+        "success",
+        `Scale reset to ${Math.round(recommendedScale * 100)}%`,
       );
     } catch {
-      showToast('error', 'Failed to analyze image');
+      showToast("error", "Failed to analyze image");
     }
   };
 
@@ -74,7 +77,7 @@ export function ScaleControl() {
           <Ruler className="w-5 h-5 text-primary-400" />
           <span className="font-medium">Scale</span>
           <span className="text-xs text-slate-500">
-            {scalePercent}% • {stripCount} strip{stripCount !== 1 ? 's' : ''}
+            {scalePercent}% • {stripCount} strip{stripCount !== 1 ? "s" : ""}
           </span>
         </div>
         {/* Inline quick strip buttons */}
@@ -85,12 +88,12 @@ export function ScaleControl() {
               <button
                 key={strips}
                 onClick={() => setImageScale(selectedImage.id, scale)}
-                className={`w-6 h-6 rounded text-xs font-medium transition-colors ${
+                className={`w-6 h-6 rounded text-xs font-medium transition-colors cursor-pointer ${
                   isActive
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600'
+                    ? "bg-primary-500 text-white"
+                    : "bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600"
                 }`}
-                title={`${strips} strip${strips > 1 ? 's' : ''}`}
+                title={`${strips} strip${strips > 1 ? "s" : ""}`}
               >
                 {strips}
               </button>
@@ -98,14 +101,13 @@ export function ScaleControl() {
           })}
           <button
             onClick={handleResetScale}
-            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors"
-            title="Auto-detect optimal scale"
+            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white rounded hover:bg-slate-700 transition-colors cursor-pointer"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white"
+            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
           >
             {expanded ? (
               <ChevronUp className="w-4 h-4" />

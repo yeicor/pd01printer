@@ -237,7 +237,7 @@ export function TransformControls() {
         <div className="flex items-center gap-1">
           <button
             onClick={handleRotate}
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+            className={`w-6 h-6 flex items-center justify-center rounded transition-colors cursor-pointer ${
               transform.rotation
                 ? "bg-primary-500 text-white"
                 : "bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600"
@@ -248,7 +248,7 @@ export function TransformControls() {
           </button>
           <button
             onClick={handleFlipH}
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+            className={`w-6 h-6 flex items-center justify-center rounded transition-colors cursor-pointer ${
               transform.flipH
                 ? "bg-primary-500 text-white"
                 : "bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600"
@@ -259,7 +259,7 @@ export function TransformControls() {
           </button>
           <button
             onClick={handleFlipV}
-            className={`w-6 h-6 flex items-center justify-center rounded transition-colors ${
+            className={`w-6 h-6 flex items-center justify-center rounded transition-colors cursor-pointer ${
               transform.flipV
                 ? "bg-primary-500 text-white"
                 : "bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600"
@@ -270,7 +270,7 @@ export function TransformControls() {
           </button>
           <button
             onClick={handleTrimWhitespace}
-            className="w-6 h-6 flex items-center justify-center rounded bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600 transition-colors"
+            className="w-6 h-6 flex items-center justify-center rounded bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600 transition-colors cursor-pointer"
             title="Auto Trim"
           >
             <Scissors className="w-3.5 h-3.5" />
@@ -278,7 +278,7 @@ export function TransformControls() {
           {selectedImage.crop && (
             <button
               onClick={clearCrop}
-              className="w-6 h-6 flex items-center justify-center rounded text-red-400 hover:text-red-300 hover:bg-slate-700 transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded text-red-400 hover:text-red-300 hover:bg-slate-700 transition-colors cursor-pointer"
               title="Clear Crop"
             >
               <X className="w-3.5 h-3.5" />
@@ -286,7 +286,7 @@ export function TransformControls() {
           )}
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white"
+            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
           >
             {expanded ? (
               <ChevronUp className="w-4 h-4" />

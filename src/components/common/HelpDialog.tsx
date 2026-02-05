@@ -5,8 +5,8 @@
  * Provides quick reference for app features and interactions.
  */
 
-import { Fragment } from 'react';
-import { X, HelpCircle } from 'lucide-react';
+import { Fragment } from "react";
+import { X, HelpCircle } from "lucide-react";
 
 interface HelpDialogProps {
   isOpen: boolean;
@@ -17,17 +17,17 @@ export function HelpDialog({ isOpen, onClose }: HelpDialogProps) {
   if (!isOpen) return null;
 
   const shortcuts = [
-    { keys: ['Ctrl', 'B'], description: 'Connect/disconnect printer' },
-    { keys: ['?'], description: 'Show this help' },
+    { keys: ["Ctrl", "B"], description: "Connect/disconnect printer" },
+    { keys: ["?"], description: "Show this help" },
   ];
 
   const tips = [
-    'Drag & drop images or PDFs directly onto the app',
-    'Use the scale slider to set any zoom level - strips follow automatically',
+    "Drag & drop images or PDFs directly onto the app",
+    "Use the scale slider to set any zoom level - strips follow automatically",
     "Toggle 'Show Separated' to see individual strips alongside the assembled view",
-    'At 100% zoom, preview shows actual printed size on your screen',
-    'Drag in preview to pan around large images',
-    'No dithering works best for text and logos',
+    "At 100% zoom, preview shows actual printed size on your screen",
+    "Drag in preview to pan around large images",
+    "No dithering works best for text and logos",
   ];
 
   return (
@@ -46,7 +46,7 @@ export function HelpDialog({ isOpen, onClose }: HelpDialogProps) {
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1"
+            className="text-slate-400 hover:text-white p-1 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
