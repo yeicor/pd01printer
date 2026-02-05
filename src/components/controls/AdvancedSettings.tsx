@@ -9,11 +9,11 @@
  * - Reset to defaults functionality
  */
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, RefreshCw, Settings2 } from 'lucide-react';
-import { useStore } from '../../store';
-import { ProcessingOptions } from '../../lib/image/processor';
-import { SliderControl } from '../common';
+import { useState } from "react";
+import { ChevronDown, ChevronUp, RefreshCw, Settings2 } from "lucide-react";
+import { useStore } from "../../store";
+import { ProcessingOptions } from "../../lib/image/processor";
+import { SliderControl } from "../common";
 
 export function AdvancedSettings() {
   const {
@@ -27,20 +27,22 @@ export function AdvancedSettings() {
 
   return (
     <div className="card">
-      <button
-        className="card-header w-full text-left hover:bg-slate-700/50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
+      <div className="card-header">
         <div className="flex items-center gap-2">
           <Settings2 className="w-5 h-5 text-primary-400" />
           <span className="font-medium">Advanced Settings</span>
         </div>
-        {expanded ? (
-          <ChevronUp className="w-5 h-5" />
-        ) : (
-          <ChevronDown className="w-5 h-5" />
-        )}
-      </button>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
+        >
+          {expanded ? (
+            <ChevronUp className="w-4 h-4" />
+          ) : (
+            <ChevronDown className="w-4 h-4" />
+          )}
+        </button>
+      </div>
 
       {expanded && (
         <div className="card-body space-y-4">
@@ -49,7 +51,7 @@ export function AdvancedSettings() {
             value={processingOptions.brightness ?? 0}
             min={-100}
             max={100}
-            onChange={(v) => setProcessingOption('brightness', v)}
+            onChange={(v) => setProcessingOption("brightness", v)}
           />
 
           <SliderControl
@@ -57,7 +59,7 @@ export function AdvancedSettings() {
             value={processingOptions.contrast ?? 0}
             min={-100}
             max={100}
-            onChange={(v) => setProcessingOption('contrast', v)}
+            onChange={(v) => setProcessingOption("contrast", v)}
           />
 
           <SliderControl
@@ -65,7 +67,7 @@ export function AdvancedSettings() {
             value={processingOptions.sharpen ?? 0}
             min={0}
             max={100}
-            onChange={(v) => setProcessingOption('sharpen', v)}
+            onChange={(v) => setProcessingOption("sharpen", v)}
           />
 
           <SliderControl
@@ -73,17 +75,17 @@ export function AdvancedSettings() {
             value={processingOptions.threshold ?? 128}
             min={0}
             max={255}
-            onChange={(v) => setProcessingOption('threshold', v)}
+            onChange={(v) => setProcessingOption("threshold", v)}
           />
 
           <div className="space-y-1">
             <label className="input-label">Dithering Algorithm</label>
             <select
-              value={processingOptions.dither ?? 'threshold'}
+              value={processingOptions.dither ?? "threshold"}
               onChange={(e) =>
                 setProcessingOption(
-                  'dither',
-                  e.target.value as ProcessingOptions['dither']
+                  "dither",
+                  e.target.value as ProcessingOptions["dither"],
                 )
               }
               className="input"
@@ -98,9 +100,9 @@ export function AdvancedSettings() {
           <div className="flex items-center justify-between">
             <label className="text-sm text-slate-400">Invert Colors</label>
             <button
-              className={`toggle ${processingOptions.invert ? 'active' : ''}`}
+              className={`toggle ${processingOptions.invert ? "active" : ""}`}
               onClick={() =>
-                setProcessingOption('invert', !processingOptions.invert)
+                setProcessingOption("invert", !processingOptions.invert)
               }
             >
               <span className="toggle-thumb" />
@@ -112,9 +114,9 @@ export function AdvancedSettings() {
           <div className="flex items-center justify-between">
             <label className="text-sm text-slate-400">Alignment Marks</label>
             <button
-              className={`toggle ${splitOptions.alignmentMarks ? 'active' : ''}`}
+              className={`toggle ${splitOptions.alignmentMarks ? "active" : ""}`}
               onClick={() =>
-                setSplitOption('alignmentMarks', !splitOptions.alignmentMarks)
+                setSplitOption("alignmentMarks", !splitOptions.alignmentMarks)
               }
             >
               <span className="toggle-thumb" />
@@ -126,7 +128,7 @@ export function AdvancedSettings() {
             value={splitOptions.padding ?? 0}
             min={0}
             max={32}
-            onChange={(v) => setSplitOption('padding', v)}
+            onChange={(v) => setSplitOption("padding", v)}
           />
 
           <button

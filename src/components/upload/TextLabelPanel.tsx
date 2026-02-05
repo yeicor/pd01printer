@@ -6,11 +6,11 @@
  * Shows a live preview of the generated label.
  */
 
-import { useState, useEffect } from 'react';
-import { X, Type, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
-import { useStore, ImageItem } from '../../store';
-import { renderText } from '../../lib/image/text-optimizer';
-import { PRINTER_WIDTH } from '../../hooks/usePrinter';
+import { useState, useMemo } from "react";
+import { X, Type, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { useStore, ImageItem } from "../../store";
+import { renderText } from "../../lib/image/text-optimizer";
+import { PRINTER_WIDTH } from "../../hooks/usePrinter";
 
 interface TextLabelPanelProps {
   isOpen: boolean;
@@ -19,63 +19,60 @@ interface TextLabelPanelProps {
 
 export function TextLabelPanel({ isOpen, onClose }: TextLabelPanelProps) {
   const { addImage, showToast } = useStore();
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
   const [fontSize, setFontSize] = useState(24);
   const [isBold, setIsBold] = useState(true);
   const [showBorder, setShowBorder] = useState(false);
-  const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [align, setAlign] = useState<"left" | "center" | "right">("center");
   const [padding, setPadding] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
   // Generate preview whenever settings change
-  useEffect(() => {
+  const previewUrl = useMemo(() => {
     if (!text.trim()) {
-      setPreviewUrl(null);
-      return;
+      return null;
     }
 
     const imageData = renderText(text, {
       fontSize,
-      fontWeight: isBold ? 'bold' : 'normal',
+      fontWeight: isBold ? "bold" : "normal",
       border: showBorder,
       maxWidth: PRINTER_WIDTH,
       padding,
       align,
     });
 
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = imageData.width;
     canvas.height = imageData.height;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext("2d")!;
     ctx.putImageData(imageData, 0, 0);
-    setPreviewUrl(canvas.toDataURL());
+    return canvas.toDataURL();
   }, [text, fontSize, isBold, showBorder, align, padding]);
 
   const createTextLabel = () => {
     if (!text.trim()) {
-      showToast('error', 'Please enter some text');
+      showToast("error", "Please enter some text");
       return;
     }
 
     const imageData = renderText(text, {
       fontSize,
-      fontWeight: isBold ? 'bold' : 'normal',
+      fontWeight: isBold ? "bold" : "normal",
       border: showBorder,
       maxWidth: PRINTER_WIDTH,
       padding,
       align,
     });
 
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
     canvas.width = imageData.width;
     canvas.height = imageData.height;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext("2d")!;
     ctx.putImageData(imageData, 0, 0);
 
     const id = `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const imageItem: ImageItem = {
       id,
-      name: `Text: ${text.slice(0, 20)}${text.length > 20 ? '...' : ''}`,
+      name: `Text: ${text.slice(0, 20)}${text.length > 20 ? "..." : ""}`,
       originalUrl: canvas.toDataURL(),
       width: imageData.width,
       height: imageData.height,
@@ -83,9 +80,9 @@ export function TextLabelPanel({ isOpen, onClose }: TextLabelPanelProps) {
     };
 
     addImage(imageItem);
-    setText('');
+    setText("");
     onClose();
-    showToast('success', 'Text label created');
+    showToast("success", "Text label created");
   };
 
   if (!isOpen) return null;
@@ -153,18 +150,18 @@ export function TextLabelPanel({ isOpen, onClose }: TextLabelPanelProps) {
           <div className="flex gap-1 flex-1">
             {(
               [
-                { value: 'left', icon: AlignLeft },
-                { value: 'center', icon: AlignCenter },
-                { value: 'right', icon: AlignRight },
+                { value: "left", icon: AlignLeft },
+                { value: "center", icon: AlignCenter },
+                { value: "right", icon: AlignRight },
               ] as const
             ).map(({ value, icon: Icon }) => (
               <button
                 key={value}
                 onClick={() => setAlign(value)}
-                className={`flex-1 py-1.5 rounded text-sm flex items-center justify-center transition-colors ${
+                className={`flex-1 py-1.5 rounded text-sm flex items-center justify-center transition-colors cursor-pointer ${
                   align === value
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-slate-700 text-slate-400 hover:text-white'
+                    ? "bg-primary-500 text-white"
+                    : "bg-slate-700 text-slate-400 hover:text-white"
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -204,7 +201,7 @@ export function TextLabelPanel({ isOpen, onClose }: TextLabelPanelProps) {
                 src={previewUrl}
                 alt="Preview"
                 className="max-w-full max-h-24 object-contain"
-                style={{ imageRendering: 'pixelated' }}
+                style={{ imageRendering: "pixelated" }}
               />
             </div>
           </div>

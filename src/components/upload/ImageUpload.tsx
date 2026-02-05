@@ -6,13 +6,13 @@
  * Automatically analyzes images for optimal scaling.
  */
 
-import { useState, useRef, useCallback } from 'react';
-import { Upload, FileText, Type, Loader2 } from 'lucide-react';
-import { useStore, ImageItem } from '../../store';
-import { loadImageFromFile } from '../../lib/image/processor';
-import { isPDF, renderPDFPage, getPDFInfo } from '../../lib/image/pdf';
-import { analyzeFeatureSizeHeuristic } from '../../utils';
-import { TextLabelPanel } from './TextLabelPanel';
+import { useState, useRef, useCallback } from "react";
+import { Upload, FileText, Type, Loader2 } from "lucide-react";
+import { useStore, ImageItem } from "../../store";
+import { loadImageFromFile } from "../../lib/image/processor";
+import { isPDF, renderPDFPage, getPDFInfo } from "../../lib/image/pdf";
+import { analyzeFeatureSizeHeuristic } from "../../utils";
+import { TextLabelPanel } from "./TextLabelPanel";
 
 export function ImageUpload() {
   const { addImage, showToast, textLabelOpen, setTextLabelOpen } = useStore();
@@ -31,18 +31,18 @@ export function ImageUpload() {
           try {
             const pdfInfo = await getPDFInfo(file);
             showToast(
-              'info',
-              `Loading PDF with ${pdfInfo.numPages} page${pdfInfo.numPages > 1 ? 's' : ''}...`
+              "info",
+              `Loading PDF with ${pdfInfo.numPages} page${pdfInfo.numPages > 1 ? "s" : ""}...`,
             );
 
             for (let page = 1; page <= pdfInfo.numPages; page++) {
               const img = await renderPDFPage(file, { page, scale: 2.0 });
               const id = `pdf-${Date.now()}-${page}-${Math.random().toString(36).substr(2, 9)}`;
 
-              const canvas = document.createElement('canvas');
+              const canvas = document.createElement("canvas");
               canvas.width = img.width;
               canvas.height = img.height;
-              const ctx = canvas.getContext('2d')!;
+              const ctx = canvas.getContext("2d")!;
               ctx.drawImage(img, 0, 0);
 
               // Analyze feature size for initial scale
@@ -50,7 +50,7 @@ export function ImageUpload() {
                 0,
                 0,
                 canvas.width,
-                canvas.height
+                canvas.height,
               );
               const { recommendedScale } =
                 analyzeFeatureSizeHeuristic(imageData);
@@ -69,11 +69,11 @@ export function ImageUpload() {
               addImage(imageItem);
             }
 
-            showToast('success', `Added ${pdfInfo.numPages} page(s) from PDF`);
+            showToast("success", `Added ${pdfInfo.numPages} page(s) from PDF`);
           } catch (error) {
             const message =
-              error instanceof Error ? error.message : 'Unknown error';
-            showToast('error', `Failed to load PDF: ${message}`);
+              error instanceof Error ? error.message : "Unknown error";
+            showToast("error", `Failed to load PDF: ${message}`);
           } finally {
             setIsLoadingPdf(false);
           }
@@ -81,8 +81,8 @@ export function ImageUpload() {
         }
 
         // Handle regular images
-        if (!file.type.startsWith('image/')) {
-          showToast('error', `${file.name} is not a supported file`);
+        if (!file.type.startsWith("image/")) {
+          showToast("error", `${file.name} is not a supported file`);
           continue;
         }
 
@@ -91,10 +91,10 @@ export function ImageUpload() {
           const id = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
           // Analyze feature size for initial scale
-          const canvas = document.createElement('canvas');
+          const canvas = document.createElement("canvas");
           canvas.width = img.width;
           canvas.height = img.height;
-          const ctx = canvas.getContext('2d')!;
+          const ctx = canvas.getContext("2d")!;
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const { recommendedScale } = analyzeFeatureSizeHeuristic(imageData);
@@ -110,15 +110,15 @@ export function ImageUpload() {
 
           addImage(imageItem);
           showToast(
-            'success',
-            `Added ${file.name}${recommendedScale < 1 ? ` (scaled to ${Math.round(recommendedScale * 100)}%)` : ''}`
+            "success",
+            `Added ${file.name}${recommendedScale < 1 ? ` (scaled to ${Math.round(recommendedScale * 100)}%)` : ""}`,
           );
         } catch {
-          showToast('error', `Failed to load ${file.name}`);
+          showToast("error", `Failed to load ${file.name}`);
         }
       }
     },
-    [addImage, showToast]
+    [addImage, showToast],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -137,13 +137,13 @@ export function ImageUpload() {
       setIsDragging(false);
       handleFiles(e.dataTransfer.files);
     },
-    [handleFiles]
+    [handleFiles],
   );
 
   return (
-    <div className={`relative ${textLabelOpen ? 'min-h-[400px]' : ''}`}>
+    <div className={`relative ${textLabelOpen ? "min-h-[400px]" : ""}`}>
       <div
-        className={`drop-zone p-6 text-center cursor-pointer relative ${isDragging ? 'dragging' : ''}`}
+        className={`drop-zone p-6 text-center cursor-pointer relative ${isDragging ? "dragging" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -183,7 +183,7 @@ export function ImageUpload() {
             e.stopPropagation();
             setTextLabelOpen(true);
           }}
-          className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-2 text-sm text-slate-400 hover:text-primary-400 bg-slate-800/80 rounded transition-colors"
+          className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-2 text-sm text-slate-400 hover:text-primary-400 bg-slate-800/80 rounded transition-colors cursor-pointer"
         >
           <Type className="w-4 h-4" />
           <span>Text</span>

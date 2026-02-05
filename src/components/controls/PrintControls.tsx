@@ -11,7 +11,7 @@
  * appropriate warnings when not available.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -21,9 +21,9 @@ import {
   Download,
   Loader2,
   AlertCircle,
-} from 'lucide-react';
-import { useStore, useSelectedImage } from '../../store';
-import { usePrinter } from '../../hooks/usePrinter';
+} from "lucide-react";
+import { useStore, useSelectedImage } from "../../store";
+import { usePrinter } from "../../hooks/usePrinter";
 
 export function PrintControls() {
   const selectedImage = useSelectedImage();
@@ -54,10 +54,10 @@ export function PrintControls() {
         img.src = strip.url;
       });
 
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = img.width;
       canvas.height = img.height;
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0);
       strips.push(ctx.getImageData(0, 0, img.width, img.height));
     }
@@ -69,8 +69,8 @@ export function PrintControls() {
     if (!selectedImage?.strips) return;
 
     selectedImage.strips.forEach((strip, index) => {
-      const link = document.createElement('a');
-      link.download = `${selectedImage.name.replace(/\.[^.]+$/, '')}_strip_${index + 1}.png`;
+      const link = document.createElement("a");
+      link.download = `${selectedImage.name.replace(/\.[^.]+$/, "")}_strip_${index + 1}.png`;
       link.href = strip.url;
       link.click();
     });
@@ -82,7 +82,7 @@ export function PrintControls() {
   // Show warning if Bluetooth not supported
   useEffect(() => {
     if (!isSupported) {
-      showToast('error', 'Bluetooth not supported in this browser');
+      showToast("error", "Bluetooth not supported in this browser");
     }
   }, [isSupported, showToast]);
 
@@ -94,7 +94,7 @@ export function PrintControls() {
           <span className="font-medium">Print</span>
           {isConnected && (
             <span className="text-xs text-emerald-400">
-              • {device?.name || 'Connected'}
+              • {device?.name || "Connected"}
             </span>
           )}
           {!isSupported && (
@@ -109,11 +109,11 @@ export function PrintControls() {
               disabled={isConnecting || !isSupported}
               className={`h-6 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium transition-colors ${
                 !isSupported
-                  ? 'bg-red-500/20 text-red-400 cursor-not-allowed'
-                  : 'bg-primary-500 text-white hover:bg-primary-600'
+                  ? "bg-red-500/20 text-red-400 cursor-not-allowed"
+                  : "bg-primary-500 text-white hover:bg-primary-600"
               }`}
               title={
-                !isSupported ? 'Bluetooth not supported' : 'Connect to printer'
+                !isSupported ? "Bluetooth not supported" : "Connect to printer"
               }
             >
               {isConnecting ? (
@@ -124,14 +124,14 @@ export function PrintControls() {
                 <Bluetooth className="w-3.5 h-3.5" />
               )}
               <span>
-                {isConnecting ? '...' : !isSupported ? 'N/A' : 'Connect'}
+                {isConnecting ? "..." : !isSupported ? "N/A" : "Connect"}
               </span>
             </button>
           ) : (
             <button
               onClick={handlePrint}
               disabled={stripCount === 0 || isPrinting}
-              className="h-6 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium bg-primary-500 text-white hover:bg-primary-600 transition-colors disabled:opacity-50"
+              className="h-6 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium bg-primary-500 text-white hover:bg-primary-600 transition-colors disabled:opacity-50 cursor-pointer"
               title="Print strips"
             >
               {isPrinting ? (
@@ -139,20 +139,20 @@ export function PrintControls() {
               ) : (
                 <Printer className="w-3.5 h-3.5" />
               )}
-              <span>{isPrinting ? '...' : `Print ${stripCount}`}</span>
+              <span>{isPrinting ? "..." : `Print ${stripCount}`}</span>
             </button>
           )}
           <button
             onClick={handleDownload}
             disabled={stripCount === 0}
-            className="w-6 h-6 flex items-center justify-center rounded bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600 transition-colors disabled:opacity-50"
+            className="h-6 px-2 flex items-center justify-center gap-1 rounded text-xs font-medium bg-slate-700 text-slate-400 hover:text-white hover:bg-slate-600 transition-colors disabled:opacity-50 cursor-pointer"
             title="Download strips"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white"
+            className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-white cursor-pointer"
           >
             {expanded ? (
               <ChevronUp className="w-4 h-4" />
@@ -171,12 +171,12 @@ export function PrintControls() {
               <div className="flex items-center gap-2">
                 <div className="connection-indicator connected" />
                 <span className="text-sm text-emerald-400">
-                  {device?.name || 'Connected'}
+                  {device?.name || "Connected"}
                 </span>
               </div>
               <button
                 onClick={disconnect}
-                className="text-xs text-slate-400 hover:text-white"
+                className="text-xs text-slate-400 hover:text-white cursor-pointer"
               >
                 Disconnect
               </button>

@@ -5,9 +5,9 @@
  * (success, error, info). Auto-dismisses after a timeout.
  */
 
-import { useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
-import { useStore } from '../../store';
+import { useEffect } from "react";
+import { X, CheckCircle, AlertCircle, Info } from "lucide-react";
+import { useStore } from "../../store";
 
 export function Toast() {
   const { toastMessage, clearToast } = useStore();
@@ -28,9 +28,9 @@ export function Toast() {
   };
 
   const bgColors = {
-    success: 'bg-emerald-950 border-emerald-500/30',
-    error: 'bg-red-950 border-red-500/30',
-    info: 'bg-blue-950 border-blue-500/30',
+    success: "bg-emerald-950 border-emerald-500/30",
+    error: "bg-red-950 border-red-500/30",
+    info: "bg-blue-950 border-blue-500/30",
   };
 
   return (
@@ -42,7 +42,7 @@ export function Toast() {
         <span className="text-sm text-slate-100">{toastMessage.message}</span>
         <button
           onClick={clearToast}
-          className="ml-2 text-slate-400 hover:text-slate-200"
+          className="ml-2 text-slate-400 hover:text-slate-200 cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>

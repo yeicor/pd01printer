@@ -23,41 +23,14 @@ export interface PDFRenderOptions {
   page?: number;
 }
 
-// Types for pdf.js (simplified)
-interface PDFDocumentProxy {
-  numPages: number;
-  getPage(pageNumber: number): Promise<PDFPageProxy>;
-  destroy(): Promise<void>;
-}
-
-interface PDFPageProxy {
-  getViewport(options: { scale: number }): PDFViewport;
-  render(options: {
-    canvasContext: CanvasRenderingContext2D;
-    viewport: PDFViewport;
-  }): { promise: Promise<void> };
-}
-
-interface PDFViewport {
-  width: number;
-  height: number;
-}
-
-interface PDFJSLib {
-  getDocument(src: string | ArrayBuffer | { data: ArrayBuffer }): {
-    promise: Promise<PDFDocumentProxy>;
-  };
-  GlobalWorkerOptions: { workerSrc: string };
-}
-
 // Module state
-let pdfjs: PDFJSLib | null = null;
-let loadPromise: Promise<PDFJSLib> | null = null;
+let pdfjs: typeof import("pdfjs-dist") | null = null;
+let loadPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 
 /**
  * Lazily load pdf.js library using dynamic import
  */
-async function loadPdfJs(): Promise<PDFJSLib> {
+async function loadPdfJs(): Promise<typeof import("pdfjs-dist")> {
   if (pdfjs) {
     return pdfjs;
   }
@@ -167,6 +140,7 @@ export async function renderPDFPage(
   await pdfPage.render({
     canvasContext: ctx,
     viewport,
+    canvas,
   }).promise;
 
   await doc.destroy();
