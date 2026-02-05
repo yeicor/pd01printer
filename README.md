@@ -2,7 +2,7 @@
 
 A modern web application for printing labels on PD01/GB01 thermal printers using Web Bluetooth. Features intelligent image processing, automatic feature detection for optimal scaling, PDF support, and vertical strip splitting for wide labels.
 
-![PD01 Label Printer](https://img.shields.io/badge/Web-Bluetooth-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)
+![PD01 Label Printer](https://img.shields.io/badge/Web-Bluetooth-blue) ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Features
 
