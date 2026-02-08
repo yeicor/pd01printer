@@ -25,7 +25,7 @@ jobs:
         run: npm run build
 
       - name: Upload Build Output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build
           path: ./dist
@@ -48,7 +48,7 @@ jobs:
       cancel-in-progress: true
     steps:
       - name: Download Build Output
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build
           path: ./dist
