@@ -123,7 +123,7 @@ export function ImagePreview() {
       // Subtract margin to ensure at least 'margin' pixels remain visible at bottom
       const maxPanY = Math.max(0, imageHeight - containerSize.height - margin);
       const minY = -maxPanY;
-      const maxY = margin;
+      const maxY = 0; // No downward panning needed since image starts at top
       
       return {
         x: Math.max(minX, Math.min(maxX, offset.x)),
