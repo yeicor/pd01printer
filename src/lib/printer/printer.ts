@@ -47,8 +47,8 @@ export interface PrintOptions {
 
 const DEFAULT_OPTIONS: Required<Omit<PrintOptions, 'onProgress'>> = {
   energy: 0xFFFF,
-  feedLines: 25,
-  rowDelay: 5,
+  feedLines: 2,
+  rowDelay: 15,
 };
 
 class PD01Printer {
@@ -306,7 +306,7 @@ class PD01Printer {
       }
     }
 
-    const { gapLines = 10, onProgress, ...printOpts } = options;
+    const { gapLines = 2, onProgress, ...printOpts } = options;
     const opts = { ...DEFAULT_OPTIONS, ...printOpts };
     const progress = onProgress || (() => {});
 

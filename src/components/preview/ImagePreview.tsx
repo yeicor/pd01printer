@@ -87,7 +87,7 @@ export function ImagePreview() {
   const [initialPinchZoom, setInitialPinchZoom] = useState<number | null>(null);
 
   // Track content dimensions for sizing
-  const [, setContentDimensions] = useState<{
+  const [contentDimensions, setContentDimensions] = useState<{
     width: number;
     height: number;
   } | null>(null);
@@ -95,42 +95,52 @@ export function ImagePreview() {
   // Track container size for clamping
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
-  // Compute effective dimensions for clamping
-  const baseWidth = selectedImage?.crop?.width || selectedImage?.width || 0;
-  const baseHeight = selectedImage?.crop?.height || selectedImage?.height || 0;
-  const isRotated90or270 =
-    selectedImage?.transform?.rotation === 90 ||
-    selectedImage?.transform?.rotation === 270;
-  const effectiveWidth = isRotated90or270 ? baseHeight : baseWidth;
-  const effectiveHeight = isRotated90or270 ? baseWidth : baseHeight;
+  // Compute effective dimensions for clamping - use actual rendered content dimensions
+  const renderedWidth = contentDimensions?.width || 0;
+  const renderedHeight = contentDimensions?.height || 0;
 
   // Clamp pan offset to keep image partly in viewport
   const clampPanOffset = useCallback(
     (offset: { x: number; y: number }) => {
-      const imageWidth = effectiveWidth * effectiveZoom;
-      const imageHeight = effectiveHeight * effectiveZoom;
+      if (!renderedWidth || !renderedHeight) {
+        // Preserve offset until dimensions are available
+        return offset;
+      }
+      
+      const imageWidth = renderedWidth * effectiveZoom;
+      const imageHeight = renderedHeight * effectiveZoom;
       const margin = 50; // pixels to keep visible
       
       // Horizontal bounds: image is centered, allow panning to see all parts
       // When imageWidth > containerWidth, we need to allow panning left/right
-      // Subtract margin to ensure at least 'margin' pixels remain visible
-      const horizontalPanLimit = Math.max(0, (imageWidth - containerSize.width) / 2 - margin);
-      const minX = -horizontalPanLimit;
-      const maxX = horizontalPanLimit;
+      // Keep at least 'margin' pixels visible on each side
+      const excessWidth = imageWidth - containerSize.width;
+      if (excessWidth > 0) {
+        const horizontalPanLimit = (excessWidth / 2) + margin;
+        const minX = -horizontalPanLimit;
+        const maxX = horizontalPanLimit;
+        return {
+          x: Math.max(minX, Math.min(maxX, offset.x)),
+          y: Math.max(-imageHeight + margin, Math.min(margin, offset.y)),
+        };
+      }
       
-      // Vertical bounds: image starts at top (items-start), allow panning to see all parts
-      // When imageHeight > containerHeight, we need to allow panning up/down
-      // Subtract margin to ensure at least 'margin' pixels remain visible at bottom
-      const verticalPanLimit = Math.max(0, imageHeight - containerSize.height - margin);
-      const minY = -verticalPanLimit;
-      const maxY = 0; // No downward panning needed since image starts at top
+      // Vertical bounds: allow panning to see all parts when image is taller than container
+      const excessHeight = imageHeight - containerSize.height;
+      if (excessHeight > 0) {
+        // Image starts at top, allow panning up to see bottom
+        const minY = -excessHeight - margin;
+        const maxY = margin;
+        return {
+          x: 0, // No horizontal panning when image fits horizontally
+          y: Math.max(minY, Math.min(maxY, offset.y)),
+        };
+      }
       
-      return {
-        x: Math.max(minX, Math.min(maxX, offset.x)),
-        y: Math.max(minY, Math.min(maxY, offset.y)),
-      };
+      // Image fits in viewport - no panning needed
+      return { x: 0, y: 0 };
     },
-    [effectiveWidth, effectiveHeight, effectiveZoom, containerSize],
+    [renderedWidth, renderedHeight, effectiveZoom, containerSize],
   );
 
   // Update container size on resize

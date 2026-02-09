@@ -65,15 +65,22 @@ export function PrintControls() {
     await printStrips(strips, { energy });
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!selectedImage?.strips) return;
 
-    selectedImage.strips.forEach((strip, index) => {
+    // Download all strips with a small delay between each to ensure browser handles them
+    for (let index = 0; index < selectedImage.strips.length; index++) {
+      const strip = selectedImage.strips[index];
       const link = document.createElement("a");
       link.download = `${selectedImage.name.replace(/\.[^.]+$/, "")}_strip_${index + 1}.png`;
       link.href = strip.url;
       link.click();
-    });
+      
+      // Add delay between downloads to prevent browser from blocking
+      if (index < selectedImage.strips.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
   };
 
   const stripCount = selectedImage?.strips?.length || 0;
