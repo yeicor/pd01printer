@@ -37,9 +37,10 @@ export function DpiCalibrationDialog({
     const calculatedDpi = (pixelsInReference / measured) * 2.54;
 
     // Store calibration
+    // Store calibration with metadata for future debugging and validation
     const calibration = {
       dpi: Math.round(calculatedDpi),
-      date: new Date().toISOString(),
+      date: new Date().toISOString(), // For tracking when calibration was performed
       referenceSize,
       measured,
     };
@@ -111,7 +112,7 @@ export function DpiCalibrationDialog({
                 Get a ruler or measuring tape that measures in centimeters
               </li>
               <li>
-                Measure the height of the blue bar below on your screen
+                Measure the <strong className="text-slate-300">height</strong> (not width) of the blue bar below
               </li>
               <li>Enter the measurement you got in the input field</li>
               <li>Click "Save Calibration"</li>
@@ -121,21 +122,22 @@ export function DpiCalibrationDialog({
           <div className="bg-slate-900 rounded-lg p-4 border border-slate-700">
             <div className="flex flex-col items-center gap-3">
               <div className="text-xs text-slate-400 text-center">
-                Measure this bar (should be {referenceSize} cm tall)
+                Measure the <strong className="text-slate-300">HEIGHT</strong> of this bar<br />
+                (Target: {referenceSize} cm tall)
               </div>
               <div
                 className="bg-gradient-to-r from-primary-500 to-primary-600 w-12 rounded"
                 style={{ height: `${referenceSize}cm` }}
               />
-              <div className="text-xs text-slate-500">
-                Target: {referenceSize} cm
+              <div className="text-xs text-slate-500 flex items-center gap-1">
+                <span>↕</span> {referenceSize} cm (vertical)
               </div>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Your Measurement (cm):
+              Height Measurement (cm):
             </label>
             <input
               type="number"
