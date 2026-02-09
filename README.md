@@ -125,7 +125,7 @@ All dimensions are shown in both pixels and centimeters:
   - Shows a warning icon (⚠️) when DPI hasn't been calibrated
   - Click the ruler icon (📏) next to it to calibrate your display
 - **Calibration** - Manual DPI calibration for accurate 1:1 preview
-  - Measure a 10cm reference bar on your screen with a ruler
+  - Measure a 5cm reference bar on your screen with a ruler
   - Enter the actual measurement to calibrate display size
   - Calibration persists across sessions in browser storage
 - **Show Separated** - Checkbox to display individual strips below the assembled view
@@ -294,7 +294,7 @@ npm run typecheck # TypeScript check
 ### 1:1 preview not accurate on mobile/phone
 - The 1:1 button may show a warning icon (⚠️) indicating uncalibrated DPI
 - Click the ruler icon (📏) to open the calibration dialog
-- Use a physical ruler to measure the 10cm blue bar on your screen
+- Use a physical ruler to measure the 5cm blue bar on your screen
 - Enter your measurement and save to calibrate
 - Calibration is saved and persists across sessions
 

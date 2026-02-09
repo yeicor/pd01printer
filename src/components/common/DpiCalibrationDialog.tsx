@@ -20,8 +20,8 @@ export function DpiCalibrationDialog({
   onClose,
 }: DpiCalibrationDialogProps) {
   const { setScreenDpi, setDpiCalibrated } = useStore();
-  const [measuredCm, setMeasuredCm] = useState<string>("10");
-  const [referenceSize] = useState(10); // cm - fixed reference size
+  const [measuredCm, setMeasuredCm] = useState<string>("5");
+  const [referenceSize] = useState(5); // cm - fixed reference size
 
   if (!isOpen) return null;
 
