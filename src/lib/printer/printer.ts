@@ -317,7 +317,9 @@ class PD01Printer {
     try {
       // Convert all images to bitmap rows
       const allRows: Uint8Array[] = [];
-      const gapRow = new Uint8Array(BYTES_PER_LINE); // Empty row (white)
+      // Create a single white row (all zeros) to use for gaps between strips
+      // Safe to reuse the same instance as it's never modified
+      const gapRow = new Uint8Array(BYTES_PER_LINE);
       
       for (let i = 0; i < images.length; i++) {
         const rows = imageToBitmap(images[i]);
