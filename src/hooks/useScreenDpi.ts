@@ -5,13 +5,17 @@
  * Uses a temporary 1-inch div element to measure the actual screen DPI.
  * This is used to display the preview at the correct physical size
  * relative to the printer's DPI.
+ *
+ * Note: CSS-based DPI detection may not be accurate on all devices,
+ * especially phones where the browser may report a standardized DPI
+ * rather than the physical screen DPI.
  */
 
 import { useEffect } from 'react';
 import { useStore } from '../store';
 
 export function useScreenDpi() {
-  const { setScreenDpi } = useStore();
+  const { setScreenDpi, setDpiCalibrated } = useStore();
 
   useEffect(() => {
     // Create a temporary 1-inch element to measure screen DPI
@@ -27,6 +31,18 @@ export function useScreenDpi() {
     document.body.removeChild(testDiv);
 
     // Use measured DPI or fallback to 96 (standard CSS DPI)
-    setScreenDpi(dpi || 96);
-  }, [setScreenDpi]);
+    const measuredDpi = dpi || 96;
+    
+    // Only set as calibrated if we have a custom calibration stored
+    // Otherwise, DPI is detected but not calibrated (may be inaccurate)
+    const storedCalibration = localStorage.getItem('pd01printer-dpi-calibration');
+    if (storedCalibration) {
+      const calibration = JSON.parse(storedCalibration);
+      setScreenDpi(calibration.dpi);
+      setDpiCalibrated(true);
+    } else {
+      setScreenDpi(measuredDpi);
+      setDpiCalibrated(false);
+    }
+  }, [setScreenDpi, setDpiCalibrated]);
 }

@@ -121,7 +121,13 @@ All dimensions are shown in both pixels and centimeters:
 - **Zoom Slider** - Smooth control from 10% to 400%
 - **Mouse Wheel** - Scroll to zoom in/out
 - **Drag to Pan** - Click and drag to move around the preview
-- **Actual Button** - Shows exact printed size on your screen
+- **1:1 Button** - Shows exact printed size on your screen
+  - Shows a warning icon (⚠️) when DPI hasn't been calibrated
+  - Click the ruler icon (📏) next to it to calibrate your display
+- **Calibration** - Manual DPI calibration for accurate 1:1 preview
+  - Measure a 5cm reference bar on your screen with a ruler
+  - Enter the actual measurement to calibrate display size
+  - Calibration persists across sessions in browser storage
 - **Show Separated** - Checkbox to display individual strips below the assembled view
 
 ### Creating Text Labels
@@ -284,6 +290,13 @@ npm run typecheck # TypeScript check
 - Check the initial auto-scaling message
 - Manually increase the scale if needed
 - Use more strips for larger output
+
+### 1:1 preview not accurate on mobile/phone
+- The 1:1 button may show a warning icon (⚠️) indicating uncalibrated DPI
+- Click the ruler icon (📏) to open the calibration dialog
+- Use a physical ruler to measure the 5cm blue bar on your screen
+- Enter your measurement and save to calibrate
+- Calibration is saved and persists across sessions
 
 ### Strips don't align
 - Enable alignment marks in Advanced Settings

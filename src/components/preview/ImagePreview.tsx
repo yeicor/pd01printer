@@ -18,6 +18,8 @@ import {
   ZoomOut,
   Move,
   Image as ImageIcon,
+  AlertTriangle,
+  Ruler,
 } from "lucide-react";
 import { useStore, useSelectedImage } from "../../store";
 import { PRINTER_WIDTH } from "../../hooks/usePrinter";
@@ -32,6 +34,7 @@ import {
   calculateStripCount,
   PRINTER_DPI,
 } from "../../lib/image/transform";
+import { DpiCalibrationDialog } from "../common/DpiCalibrationDialog";
 
 /**
  * Calculate distance between two touch points
@@ -45,7 +48,7 @@ function getTouchDistance(touches: React.TouchList | TouchList): number {
 
 export function ImagePreview() {
   const selectedImage = useSelectedImage();
-  const { processingOptions, splitOptions, updateImage, screenDpi } =
+  const { processingOptions, splitOptions, updateImage, screenDpi, dpiCalibrated } =
     useStore();
   const [splitResult, setSplitResult] = useState<SplitResult | null>(null);
   const [assemblyPreviewUrl, setAssemblyPreviewUrl] = useState<string | null>(
@@ -54,6 +57,7 @@ export function ImagePreview() {
   const [separatedStripUrls, setSeparatedStripUrls] = useState<string[]>([]);
   const [showSeparated, setShowSeparated] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showCalibration, setShowCalibration] = useState(false);
 
   // Zoom and pan state
   // "1:1" means actual printed size on screen (screenDpi / printerDpi)
@@ -479,15 +483,26 @@ export function ImagePreview() {
             </button>
 
             <button
-              className={`px-2 py-1 text-xs rounded transition-colors ml-1 ${
+              className={`px-2 py-1 text-xs rounded transition-colors ml-1 flex items-center gap-1 ${
                 Math.abs(effectiveZoom - actualSizeZoom) < 0.01
                   ? "bg-primary-500 text-white"
                   : "bg-slate-700 text-slate-400 hover:text-white"
               }`}
               onClick={() => setZoom(actualSizeZoom)}
-              title="Actual printed size"
+              title={dpiCalibrated ? "Actual printed size (calibrated)" : "Actual printed size (may be inaccurate - click calibrate icon)"}
             >
               1:1
+              {!dpiCalibrated && (
+                <AlertTriangle className="w-3 h-3 text-yellow-400" />
+              )}
+            </button>
+
+            <button
+              className="btn-icon ml-1"
+              onClick={() => setShowCalibration(true)}
+              title="Calibrate display size for accurate 1:1 preview"
+            >
+              <Ruler className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -595,6 +610,12 @@ export function ImagePreview() {
           </span>
         </div>
       )}
+
+      {/* DPI Calibration Dialog */}
+      <DpiCalibrationDialog
+        isOpen={showCalibration}
+        onClose={() => setShowCalibration(false)}
+      />
     </div>
   );
 }
