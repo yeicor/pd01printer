@@ -7,3 +7,4 @@
 export { Toast } from './Toast';
 export { HelpDialog } from './HelpDialog';
 export { SliderControl } from './SliderControl';
+export { DpiCalibrationDialog } from './DpiCalibrationDialog';

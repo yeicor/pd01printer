@@ -93,6 +93,7 @@ interface PrinterState {
 
   // Screen DPI for accurate preview sizing
   screenDpi: number;
+  dpiCalibrated: boolean; // Whether DPI has been manually calibrated
 
   // Actions - Connection
   setConnectionState: (state: ConnectionState) => void;
@@ -149,6 +150,7 @@ interface PrinterState {
   clearToast: () => void;
   setTextLabelOpen: (open: boolean) => void;
   setScreenDpi: (dpi: number) => void;
+  setDpiCalibrated: (calibrated: boolean) => void;
 }
 
 // Default transform options (maximize paper usage)
@@ -216,6 +218,7 @@ export const useStore = create<PrinterState>()(
       toastMessage: null,
       textLabelOpen: false,
       screenDpi: 96, // Default, will be calculated
+      dpiCalibrated: false,
 
       // Actions - Connection
       setConnectionState: (state) => set({ connectionState: state }),
@@ -362,6 +365,7 @@ export const useStore = create<PrinterState>()(
       clearToast: () => set({ toastMessage: null }),
       setTextLabelOpen: (open) => set({ textLabelOpen: open }),
       setScreenDpi: (dpi) => set({ screenDpi: dpi }),
+      setDpiCalibrated: (calibrated) => set({ dpiCalibrated: calibrated }),
     }),
     {
       name: "pd01printer-storage",
