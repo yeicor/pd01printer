@@ -17,6 +17,7 @@
 import { bluetooth, ConnectionState, BluetoothDevice } from './bluetooth';
 import {
   PRINTER_WIDTH,
+  BYTES_PER_LINE,
   cmdGetDevState,
   cmdSetQuality200DPI,
   cmdSetEnergy,
@@ -280,29 +281,181 @@ class PD01Printer {
   }
 
   /**
-   * Print multiple images (label strips)
+   * Print multiple images (label strips) as one continuous print job
    */
   async printMultiple(
     images: ImageData[],
     options: PrintOptions & { gapLines?: number } = {}
   ): Promise<void> {
-    const { gapLines = 10, onProgress, ...printOpts } = options;
+    if (!bluetooth.isConnected()) {
+      throw new Error('Not connected to printer');
+    }
 
+    if (this.printing) {
+      throw new Error('Already printing');
+    }
+
+    if (images.length === 0) {
+      throw new Error('No images to print');
+    }
+
+    // Validate all images
     for (let i = 0; i < images.length; i++) {
-      await this.print(images[i], {
-        ...printOpts,
-        feedLines: i < images.length - 1 ? gapLines : (printOpts.feedLines || DEFAULT_OPTIONS.feedLines),
-        onProgress: onProgress ? (progress) => {
-          // Adjust progress to reflect overall progress
-          const baseProgress = (i / images.length) * 100;
-          const segmentProgress = (progress.progress / images.length);
-          onProgress({
-            ...progress,
-            progress: Math.round(baseProgress + segmentProgress),
-            message: `[${i + 1}/${images.length}] ${progress.message}`,
-          });
-        } : undefined,
+      if (images[i].width !== PRINTER_WIDTH) {
+        throw new Error(`Image ${i + 1} width must be ${PRINTER_WIDTH} pixels, got ${images[i].width}`);
+      }
+    }
+
+    const { gapLines = 10, onProgress, ...printOpts } = options;
+    const opts = { ...DEFAULT_OPTIONS, ...printOpts };
+    const progress = onProgress || (() => {});
+
+    this.printing = true;
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+
+    try {
+      // Convert all images to bitmap rows
+      const allRows: Uint8Array[] = [];
+      const gapRow = new Uint8Array(BYTES_PER_LINE); // Empty row (white)
+      
+      for (let i = 0; i < images.length; i++) {
+        const rows = imageToBitmap(images[i]);
+        allRows.push(...rows);
+        
+        // Add gap rows between strips (but not after the last one)
+        if (i < images.length - 1) {
+          for (let j = 0; j < gapLines; j++) {
+            allRows.push(gapRow);
+          }
+        }
+      }
+
+      const totalRows = allRows.length;
+
+      // Phase 1: Initialize (once for all strips)
+      progress({
+        phase: 'init',
+        progress: 0,
+        currentRow: 0,
+        totalRows,
+        message: `Initializing printer for ${images.length} strip${images.length > 1 ? 's' : ''}...`,
       });
+
+      this.checkAbort(signal);
+
+      // Query device state
+      await bluetooth.send(cmdGetDevState());
+      await this.delay(50);
+      this.checkAbort(signal);
+
+      // Set quality
+      await bluetooth.send(cmdSetQuality200DPI());
+      await this.delay(20);
+      this.checkAbort(signal);
+
+      // Set energy
+      await bluetooth.send(cmdSetEnergy(opts.energy));
+      await this.delay(20);
+      this.checkAbort(signal);
+
+      // Apply energy
+      await bluetooth.send(cmdApplyEnergy());
+      await this.delay(20);
+      this.checkAbort(signal);
+
+      // Lattice start (once for all strips)
+      await bluetooth.send(cmdLatticeStart());
+      await this.delay(20);
+      this.checkAbort(signal);
+
+      // Phase 2: Print all rows continuously
+      for (let i = 0; i < allRows.length; i++) {
+        this.checkAbort(signal);
+
+        const rowProgress = Math.round((i / totalRows) * 100);
+        progress({
+          phase: 'printing',
+          progress: rowProgress,
+          currentRow: i + 1,
+          totalRows,
+          message: `Printing row ${i + 1} of ${totalRows}...`,
+        });
+
+        await bluetooth.send(cmdPrintRow(allRows[i]));
+        await this.delay(opts.rowDelay);
+      }
+
+      // Phase 3: Feed paper
+      progress({
+        phase: 'feeding',
+        progress: 95,
+        currentRow: totalRows,
+        totalRows,
+        message: 'Feeding paper...',
+      });
+
+      this.checkAbort(signal);
+      await bluetooth.send(cmdFeedPaper(opts.feedLines));
+      await this.delay(50);
+
+      // Phase 4: Finishing
+      progress({
+        phase: 'finishing',
+        progress: 97,
+        currentRow: totalRows,
+        totalRows,
+        message: 'Finishing...',
+      });
+
+      // Set paper (3 times as per protocol)
+      for (let i = 0; i < 3; i++) {
+        this.checkAbort(signal);
+        await bluetooth.send(cmdSetPaper());
+        await this.delay(20);
+      }
+
+      // Lattice end (once for all strips)
+      await bluetooth.send(cmdLatticeEnd());
+      await this.delay(20);
+
+      // Final state query
+      await bluetooth.send(cmdGetDevState());
+      await this.delay(50);
+
+      // Done
+      progress({
+        phase: 'done',
+        progress: 100,
+        currentRow: totalRows,
+        totalRows,
+        message: `Print complete! (${images.length} strip${images.length > 1 ? 's' : ''})`,
+      });
+
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        progress({
+          phase: 'error',
+          progress: 0,
+          currentRow: 0,
+          totalRows: 0,
+          message: 'Print aborted',
+        });
+        throw new Error('Print aborted');
+      }
+
+      progress({
+        phase: 'error',
+        progress: 0,
+        currentRow: 0,
+        totalRows: 0,
+        message: `Print error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+      throw error;
+
+    } finally {
+      this.printing = false;
+      this.abortController = null;
     }
   }
 
