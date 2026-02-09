@@ -9,7 +9,7 @@
  * - Full touch support with larger touch targets for mobile
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -33,14 +33,58 @@ export function TransformControls() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState<HTMLImageElement | null>(null);
 
+  const transform = selectedImage?.transform || {};
+  const rotation = transform.rotation || 0;
+
+  // Actually generate the rotated preview asynchronously
+  const [rotatedPreview, setRotatedPreview] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (!selectedImage || rotation === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRotatedPreview(null);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
+
+      if (rotation === 90 || rotation === 270) {
+        canvas.width = img.height;
+        canvas.height = img.width;
+      } else {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      setRotatedPreview(canvas.toDataURL());
+    };
+    img.src = selectedImage.originalUrl;
+  }, [selectedImage, rotation]);
+
   if (!selectedImage) return null;
 
-  const transform = selectedImage.transform || {};
+  // Get display dimensions (accounting for rotation)
+  const displayWidth =
+    rotation === 90 || rotation === 270
+      ? selectedImage.height
+      : selectedImage.width;
+  const displayHeight =
+    rotation === 90 || rotation === 270
+      ? selectedImage.width
+      : selectedImage.height;
   const crop = selectedImage.crop || {
     x: 0,
     y: 0,
-    width: selectedImage.width,
-    height: selectedImage.height,
+    width: displayWidth,
+    height: displayHeight,
   };
 
   const handleRotate = () => {
@@ -93,8 +137,8 @@ export function TransformControls() {
   ): { x: number; y: number } => {
     if (!containerRef.current || !imageLoaded) return { x: 0, y: 0 };
     const rect = containerRef.current.getBoundingClientRect();
-    const scaleX = selectedImage.width / rect.width;
-    const scaleY = selectedImage.height / rect.height;
+    const scaleX = displayWidth / rect.width;
+    const scaleY = displayHeight / rect.height;
     return {
       x: Math.round((clientX - rect.left) * scaleX),
       y: Math.round((clientY - rect.top) * scaleY),
@@ -156,11 +200,11 @@ export function TransformControls() {
     if (isDragging === "move") {
       newCrop.x = Math.max(
         0,
-        Math.min(selectedImage.width - cropStart.w, cropStart.x + dx),
+        Math.min(displayWidth - cropStart.w, cropStart.x + dx),
       );
       newCrop.y = Math.max(
         0,
-        Math.min(selectedImage.height - cropStart.h, cropStart.y + dy),
+        Math.min(displayHeight - cropStart.h, cropStart.y + dy),
       );
     } else if (isDragging === "nw") {
       newCrop.x = Math.max(
@@ -180,7 +224,7 @@ export function TransformControls() {
       );
       newCrop.width = Math.max(
         10,
-        Math.min(selectedImage.width - cropStart.x, cropStart.w + dx),
+        Math.min(displayWidth - cropStart.x, cropStart.w + dx),
       );
       newCrop.height = cropStart.y + cropStart.h - newCrop.y;
     } else if (isDragging === "sw") {
@@ -191,16 +235,16 @@ export function TransformControls() {
       newCrop.width = cropStart.x + cropStart.w - newCrop.x;
       newCrop.height = Math.max(
         10,
-        Math.min(selectedImage.height - cropStart.y, cropStart.h + dy),
+        Math.min(displayHeight - cropStart.y, cropStart.h + dy),
       );
     } else if (isDragging === "se") {
       newCrop.width = Math.max(
         10,
-        Math.min(selectedImage.width - cropStart.x, cropStart.w + dx),
+        Math.min(displayWidth - cropStart.x, cropStart.w + dx),
       );
       newCrop.height = Math.max(
         10,
-        Math.min(selectedImage.height - cropStart.y, cropStart.h + dy),
+        Math.min(displayHeight - cropStart.y, cropStart.h + dy),
       );
     }
 
@@ -307,7 +351,7 @@ export function TransformControls() {
             ref={containerRef}
             className="relative bg-slate-900 rounded overflow-hidden select-none"
             style={{
-              aspectRatio: `${selectedImage.width} / ${selectedImage.height}`,
+              aspectRatio: `${displayWidth} / ${displayHeight}`,
               touchAction: "none", // Prevent browser touch gestures
             }}
             onMouseMove={handleMouseMove}
@@ -318,7 +362,7 @@ export function TransformControls() {
             onTouchCancel={handleTouchEnd}
           >
             <img
-              src={selectedImage.originalUrl}
+              src={rotatedPreview || selectedImage.originalUrl}
               alt="Crop preview"
               className="w-full h-full object-contain"
               draggable={false}
@@ -327,11 +371,11 @@ export function TransformControls() {
             {/* Darkened overlay outside crop */}
             <svg
               className="absolute inset-0 w-full h-full pointer-events-none"
-              viewBox={`0 0 ${selectedImage.width} ${selectedImage.height}`}
+              viewBox={`0 0 ${displayWidth} ${displayHeight}`}
               preserveAspectRatio="none"
             >
               <path
-                d={`M0,0 L${selectedImage.width},0 L${selectedImage.width},${selectedImage.height} L0,${selectedImage.height} Z
+                d={`M0,0 L${displayWidth},0 L${displayWidth},${displayHeight} L0,${displayHeight} Z
                     M${crop.x},${crop.y}
                     L${crop.x + crop.width},${crop.y}
                     L${crop.x + crop.width},${crop.y + crop.height}
@@ -346,17 +390,17 @@ export function TransformControls() {
                 height={crop.height}
                 fill="none"
                 stroke="#0ea5e9"
-                strokeWidth={Math.max(2, selectedImage.width / 200)}
+                strokeWidth={Math.max(2, displayWidth / 200)}
               />
             </svg>
             {/* Draggable overlay for move - with touch support */}
             <div
               className="absolute cursor-move"
               style={{
-                left: `${(crop.x / selectedImage.width) * 100}%`,
-                top: `${(crop.y / selectedImage.height) * 100}%`,
-                width: `${(crop.width / selectedImage.width) * 100}%`,
-                height: `${(crop.height / selectedImage.height) * 100}%`,
+                left: `${(crop.x / displayWidth) * 100}%`,
+                top: `${(crop.y / displayHeight) * 100}%`,
+                width: `${(crop.width / displayWidth) * 100}%`,
+                height: `${(crop.height / displayHeight) * 100}%`,
               }}
               onMouseDown={(e) => handleMouseDown(e, "move")}
               onTouchStart={(e) => handleTouchStart(e, "move")}
@@ -373,8 +417,8 @@ export function TransformControls() {
                     // Larger touch targets: 24px on mobile, 16px on desktop
                     width: "clamp(16px, 6vw, 24px)",
                     height: "clamp(16px, 6vw, 24px)",
-                    left: `${((crop.x + (isLeft ? 0 : crop.width)) / selectedImage.width) * 100}%`,
-                    top: `${((crop.y + (isTop ? 0 : crop.height)) / selectedImage.height) * 100}%`,
+                    left: `${((crop.x + (isLeft ? 0 : crop.width)) / displayWidth) * 100}%`,
+                    top: `${((crop.y + (isTop ? 0 : crop.height)) / displayHeight) * 100}%`,
                     cursor:
                       corner === "nw" || corner === "se"
                         ? "nwse-resize"

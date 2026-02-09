@@ -85,14 +85,14 @@ export async function transformImage(
   // Get source canvas
   let canvas = await sourceToCanvas(source);
 
-  // Apply crop first (in original coordinates)
-  if (opts.crop) {
-    canvas = cropCanvas(canvas, opts.crop);
-  }
-
-  // Apply rotation
+  // Apply rotation first if present, so crop coordinates work in rotated space
   if (opts.rotation !== 0) {
     canvas = rotateCanvas(canvas, opts.rotation);
+  }
+
+  // Apply crop (in rotated coordinates if rotation was applied)
+  if (opts.crop) {
+    canvas = cropCanvas(canvas, opts.crop);
   }
 
   // Apply flips

@@ -6,7 +6,7 @@
  * Automatically analyzes images for optimal scaling.
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Upload, FileText, Type, Loader2 } from "lucide-react";
 import { useStore, ImageItem } from "../../store";
 import { loadImageFromFile } from "../../lib/image/processor";
@@ -18,7 +18,6 @@ export function ImageUpload() {
   const { addImage, showToast, textLabelOpen, setTextLabelOpen } = useStore();
   const [isDragging, setIsDragging] = useState(false);
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = useCallback(
     async (files: FileList | null) => {
@@ -140,24 +139,35 @@ export function ImageUpload() {
     [handleFiles],
   );
 
+  // Helper to create and trigger file input
+  const openFileDialog = useCallback(
+    (accept: string) => {
+      if (textLabelOpen) return;
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = accept;
+      input.multiple = true;
+      input.onchange = (e) =>
+        handleFiles((e.target as HTMLInputElement).files);
+      input.click();
+    },
+    [textLabelOpen, handleFiles],
+  );
+
+  // Handler for photos/images
+  const handleImageClick = () => openFileDialog("image/*");
+
+  // Handler for PDFs
+  const handlePdfClick = () => openFileDialog(".pdf,application/pdf");
+
   return (
     <div className={`relative ${textLabelOpen ? "min-h-[400px]" : ""}`}>
       <div
-        className={`drop-zone p-6 text-center cursor-pointer relative ${isDragging ? "dragging" : ""}`}
+        className={`drop-zone p-4 text-center relative ${isDragging ? "dragging" : ""}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => !textLabelOpen && fileInputRef.current?.click()}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,.pdf,application/pdf"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files)}
-        />
-
         {isLoadingPdf ? (
           <div className="py-4">
             <Loader2 className="w-10 h-10 mx-auto mb-3 text-primary-400 animate-spin" />
@@ -165,29 +175,46 @@ export function ImageUpload() {
           </div>
         ) : (
           <>
-            <div className="flex justify-center gap-4 mb-3">
-              <Upload className="w-8 h-8 text-slate-500" />
-              <FileText className="w-8 h-8 text-slate-500" />
-            </div>
-            <p className="text-slate-300 text-sm mb-1">
-              Drop images or PDFs here
+            <p className="text-slate-300 text-sm mb-3">
+              {isDragging ? "Drop files here" : "Add Content"}
             </p>
-            <p className="text-xs text-slate-500">
-              PNG, JPG, WebP, GIF, PDF supported
+            <div className="grid grid-cols-3 gap-2">
+              {/* Photos Button */}
+              <button
+                onClick={handleImageClick}
+                disabled={textLabelOpen}
+                className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 border border-slate-600 hover:border-primary-500 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Upload className="w-6 h-6 text-primary-400" />
+                <span className="text-xs text-slate-300 font-medium">
+                  Photos
+                </span>
+              </button>
+
+              {/* PDFs Button */}
+              <button
+                onClick={handlePdfClick}
+                disabled={textLabelOpen}
+                className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 border border-slate-600 hover:border-primary-500 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-6 h-6 text-primary-400" />
+                <span className="text-xs text-slate-300 font-medium">PDFs</span>
+              </button>
+
+              {/* Text Label Button */}
+              <button
+                onClick={() => setTextLabelOpen(true)}
+                className="flex flex-col items-center gap-2 p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 border border-slate-600 hover:border-primary-500 transition-all cursor-pointer"
+              >
+                <Type className="w-6 h-6 text-primary-400" />
+                <span className="text-xs text-slate-300 font-medium">Text</span>
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mt-3">
+              or drag & drop images/PDFs
             </p>
           </>
         )}
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setTextLabelOpen(true);
-          }}
-          className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-2 text-sm text-slate-400 hover:text-primary-400 bg-slate-800/80 rounded transition-colors cursor-pointer"
-        >
-          <Type className="w-4 h-4" />
-          <span>Text</span>
-        </button>
       </div>
 
       <TextLabelPanel
