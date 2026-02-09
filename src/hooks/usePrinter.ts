@@ -113,8 +113,8 @@ export function usePrinter(): UsePrinterReturn {
     try {
       await printer.print(imageData, {
         energy: options?.energy ?? 0xFFFF,
-        feedLines: options?.feedLines ?? 8,
-        rowDelay: options?.rowDelay ?? 10,
+        feedLines: options?.feedLines ?? 2,
+        rowDelay: options?.rowDelay ?? 15,
         onProgress: (progress) => {
           setPrintProgress(progress);
         },
@@ -148,8 +148,8 @@ export function usePrinter(): UsePrinterReturn {
     try {
       await printer.printMultiple(strips, {
         energy: options?.energy ?? 0xFFFF,
-        feedLines: options?.feedLines ?? 8,
-        rowDelay: options?.rowDelay ?? 10,
+        feedLines: options?.feedLines ?? 2,
+        rowDelay: options?.rowDelay ?? 15,
         gapLines: options?.gapLines ?? 2,
         onProgress: (progress) => {
           setPrintProgress(progress);
