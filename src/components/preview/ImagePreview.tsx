@@ -103,7 +103,8 @@ export function ImagePreview() {
   const clampPanOffset = useCallback(
     (offset: { x: number; y: number }) => {
       if (!renderedWidth || !renderedHeight) {
-        return { x: 0, y: 0 };
+        // Preserve offset until dimensions are available
+        return offset;
       }
       
       const imageWidth = renderedWidth * effectiveZoom;
@@ -131,7 +132,7 @@ export function ImagePreview() {
         const minY = -excessHeight - margin;
         const maxY = margin;
         return {
-          x: offset.x, // No horizontal panning needed if image fits
+          x: 0, // No horizontal panning when image fits horizontally
           y: Math.max(minY, Math.min(maxY, offset.y)),
         };
       }
