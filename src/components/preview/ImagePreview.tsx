@@ -113,13 +113,15 @@ export function ImagePreview() {
       
       // Horizontal bounds: image is centered, allow panning to see all parts
       // When imageWidth > containerWidth, we need to allow panning left/right
-      const maxPanX = Math.max(0, (imageWidth - containerSize.width) / 2 + margin);
+      // Subtract margin to ensure at least 'margin' pixels remain visible
+      const maxPanX = Math.max(0, (imageWidth - containerSize.width) / 2 - margin);
       const minX = -maxPanX;
       const maxX = maxPanX;
       
       // Vertical bounds: image starts at top (items-start), allow panning to see all parts
       // When imageHeight > containerHeight, we need to allow panning up/down
-      const maxPanY = Math.max(0, imageHeight - containerSize.height + margin);
+      // Subtract margin to ensure at least 'margin' pixels remain visible at bottom
+      const maxPanY = Math.max(0, imageHeight - containerSize.height - margin);
       const minY = -maxPanY;
       const maxY = margin;
       
