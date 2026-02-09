@@ -139,29 +139,26 @@ export function ImageUpload() {
     [handleFiles],
   );
 
+  // Helper to create and trigger file input
+  const openFileDialog = useCallback(
+    (accept: string) => {
+      if (textLabelOpen) return;
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = accept;
+      input.multiple = true;
+      input.onchange = (e) =>
+        handleFiles((e.target as HTMLInputElement).files);
+      input.click();
+    },
+    [textLabelOpen, handleFiles],
+  );
+
   // Handler for photos/images
-  const handleImageClick = () => {
-    if (textLabelOpen) return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.multiple = true;
-    input.onchange = (e) =>
-      handleFiles((e.target as HTMLInputElement).files);
-    input.click();
-  };
+  const handleImageClick = () => openFileDialog("image/*");
 
   // Handler for PDFs
-  const handlePdfClick = () => {
-    if (textLabelOpen) return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".pdf,application/pdf";
-    input.multiple = true;
-    input.onchange = (e) =>
-      handleFiles((e.target as HTMLInputElement).files);
-    input.click();
-  };
+  const handlePdfClick = () => openFileDialog(".pdf,application/pdf");
 
   return (
     <div className={`relative ${textLabelOpen ? "min-h-[400px]" : ""}`}>
